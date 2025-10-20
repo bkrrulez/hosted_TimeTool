@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -132,7 +133,7 @@ export function MarkAbsenceDialog({ isOpen, onOpenChange, onSave, userId, member
               name="date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Absence Dates</FormLabel>
+                  <FormLabel>Absence/ Work Dates</FormLabel>
                   <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -190,7 +191,7 @@ export function MarkAbsenceDialog({ isOpen, onOpenChange, onSave, userId, member
               name="type"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Absence Type</FormLabel>
+                  <FormLabel>Absence/ Work Type</FormLabel>
                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
