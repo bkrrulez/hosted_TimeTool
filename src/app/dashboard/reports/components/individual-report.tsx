@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -100,11 +101,11 @@ const DayContent: React.FC<DayContentProps> = (props) => {
                 <span className="text-[10px] font-semibold text-green-600 truncate px-1">
                     {holidayName}
                 </span>
-            ) : expectedHours > 0 ? (
+            ) : /* expectedHours > 0 ? (
                 <span className="text-[10px] font-semibold text-orange-400">
                     {t('expectedHoursShort', { hours: expectedHours.toFixed(1) })}
                 </span>
-            ) : <span className="h-[15px]" />
+            ) : */ <span className="h-[15px]" />
         ) : <span className="h-[15px]" />}
     </div>
   );
@@ -613,4 +614,3 @@ export function IndividualReport() {
     </div>
   );
 }
-
