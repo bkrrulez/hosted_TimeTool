@@ -1,5 +1,4 @@
 
-
 export type Contract = {
   id: string;
   userId: string;
