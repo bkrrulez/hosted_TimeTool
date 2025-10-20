@@ -141,7 +141,7 @@ export function MyRoster() {
                     continue; // Skip this chunk but try to save others
                 }
                 
-                await addAbsence({ userId, startDate: chunkStartStr, endDate: chunkEndStr, type }, force);
+                await addAbsence({ userId, startDate: chunkStartStr, endDate: chunkEndStr, type: type as Absence['type'] }, force);
             }
             setIsAbsenceDialogOpen(false);
             setEditingAbsence(null);
@@ -204,6 +204,16 @@ export function MyRoster() {
                 absence.type === 'Sick Leave' &&
                 isDateInAbsence(format(date, 'yyyy-MM-dd'), absence)
             ),
+            inOffice: (date: Date) => absences.some(absence => 
+                absence.userId === userId &&
+                absence.type === 'In Office' &&
+                isDateInAbsence(format(date, 'yyyy-MM-dd'), absence)
+            ),
+            homeOffice: (date: Date) => absences.some(absence => 
+                absence.userId === userId &&
+                absence.type === 'Home Office' &&
+                isDateInAbsence(format(date, 'yyyy-MM-dd'), absence)
+            ),
             publicHoliday: (date: Date) => publicHolidays.some(ph => 
                 ph.date.split('T')[0] === format(date, 'yyyy-MM-dd')
             ),
@@ -228,6 +238,13 @@ export function MyRoster() {
             } else if (modifiers.generalAbsence(props.date)) {
                 className = cn(className, "bg-yellow-200 dark:bg-yellow-800");
                 tooltip = 'General Absence';
+            } else if (modifiers.inOffice(props.date)) {
+                className = cn(className, "bg-gray-200 dark:bg-gray-700");
+                tooltip = 'In Office';
+            } else if (modifiers.homeOffice(props.date)) {
+                className = cn(className, "bg-gray-200 dark:bg-gray-700");
+                className += " bg-[linear-gradient(-45deg,rgba(0,0,0,0.1)_25%,transparent_25%,transparent_50%,rgba(0,0,0,0.1)_50%,rgba(0,0,0,0.1)_75%,transparent_75%,transparent)] bg-[length:8px_8px]";
+                tooltip = 'Home Office';
             } else if (modifiers.workDay(props.date)) {
                 className = cn(className, "bg-sky-200 dark:bg-sky-800");
                 tooltip = 'Work Logged';

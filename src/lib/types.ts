@@ -13,7 +13,7 @@ export type Absence = {
   userId: string;
   startDate: string;
   endDate: string;
-  type: 'General Absence' | 'Sick Leave';
+  type: 'General Absence' | 'Sick Leave' | 'In Office' | 'Home Office';
 };
 
 export type User = {
