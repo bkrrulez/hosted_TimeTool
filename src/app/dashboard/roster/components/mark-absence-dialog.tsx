@@ -212,7 +212,7 @@ export function MarkAbsenceDialog({ isOpen, onOpenChange, onSave, userId, member
             />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="submit">Save Absence</Button>
+              <Button type="submit">Save</Button>
             </DialogFooter>
           </form>
         </Form>
