@@ -78,7 +78,7 @@ export function MyRoster() {
         const startDateStr = format(from, 'yyyy-MM-dd');
         const endDateStr = format(to, 'yyyy-MM-dd');
         
-        if (type === 'Clear Absence') {
+        if (type === 'Clear Absence/ Work') {
             await deleteAbsencesInRange(userId, startDateStr, endDateStr, false);
             setIsAbsenceDialogOpen(false);
             setEditingAbsence(null);

@@ -24,7 +24,7 @@ const absenceSchema = z.object({
     from: z.date({ required_error: 'A start date is required.' }),
     to: z.date({ required_error: 'An end date is required.' }),
   }),
-  type: z.enum(['General Absence', 'Sick Leave', 'Clear Absence']),
+  type: z.enum(['General Absence', 'Sick Leave', 'Clear Absence/ Work']),
 });
 
 type AbsenceFormValues = z.infer<typeof absenceSchema>;
@@ -79,7 +79,7 @@ export function MarkAbsenceDialog({ isOpen, onOpenChange, onSave, userId, member
   function onSubmit(data: AbsenceFormValues) {
     const targetUserId = isTeamView ? data.userId : userId;
     if (data.date.from && data.date.to && targetUserId) {
-      onSave(data.date.from, data.date.to, data.type, targetUserId, absence?.id);
+      onSave(data.date.from, data.date.to, data.type as AbsenceType, targetUserId, absence?.id);
     }
   }
 
@@ -201,7 +201,7 @@ export function MarkAbsenceDialog({ isOpen, onOpenChange, onSave, userId, member
                       <SelectContent>
                         <SelectItem value="General Absence">General Absence</SelectItem>
                         <SelectItem value="Sick Leave">Sick Leave</SelectItem>
-                        <SelectItem value="Clear Absence">Clear Absence</SelectItem>
+                        <SelectItem value="Clear Absence/ Work">Clear Absence/ Work</SelectItem>
                       </SelectContent>
                     </Select>
                   <FormMessage />

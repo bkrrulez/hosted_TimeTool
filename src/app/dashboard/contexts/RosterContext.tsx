@@ -7,7 +7,7 @@ import { addAbsence as addAbsenceAction, getAbsences, deleteAbsencesInRange as d
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
-export type AbsenceType = 'General Absence' | 'Sick Leave' | 'Clear Absence';
+export type AbsenceType = 'General Absence' | 'Sick Leave' | 'Clear Absence/ Work';
 
 interface RosterContextType {
   absences: Absence[];
