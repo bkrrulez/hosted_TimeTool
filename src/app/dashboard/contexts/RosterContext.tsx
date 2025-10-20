@@ -44,7 +44,7 @@ export function RosterProvider({ children }: { children: React.ReactNode }) {
     const newAbsence = await addAbsenceAction(absence);
     if (newAbsence) {
       await fetchRosterData();
-      toast({ title: 'Absence Marked', description: 'The absence has been successfully recorded.' });
+      toast({ title: 'Absence/ Work Added', description: 'The absence has been successfully recorded.' });
     } else {
         toast({ variant: 'destructive', title: 'Error', description: 'Could not mark absence.' });
     }
@@ -55,7 +55,7 @@ export function RosterProvider({ children }: { children: React.ReactNode }) {
     if (deletedCount > 0) {
         await fetchRosterData();
         if (!quiet) {
-            toast({ title: 'Absence Cleared', description: `The absence record(s) in the selected range have been cleared.` });
+            toast({ title: 'Absence/ Work Cleared', description: `The absence record(s) in the selected range have been cleared.` });
         }
     } else {
         if (!quiet) {
