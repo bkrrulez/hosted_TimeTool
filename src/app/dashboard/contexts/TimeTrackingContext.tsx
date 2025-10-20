@@ -123,9 +123,15 @@ export function TimeTrackingProvider({ children }: { children: React.ReactNode }
 
   const updateTimeEntry = async (entryId: string, data: Omit<LogTimeFormValues, 'userId'>, userId: string, allUsers: User[]): Promise<{ success: boolean }> => {
     try {
+      const dateStr = format(data.date, 'yyyy-MM-dd');
+      
+      // Automatically clear any absence on the day work is being logged/updated
+      await deleteAbsencesInRange(userId, dateStr, dateStr, true);
+      await fetchRosterData();
+
       const updatedEntryData = {
         userId: userId,
-        date: format(data.date, 'yyyy-MM-dd'),
+        date: dateStr,
         startTime: data.startTime,
         endTime: data.endTime,
         projectId: data.project,
