@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -12,6 +13,7 @@ interface RosterContextType {
   absences: Absence[];
   addAbsence: (absence: Omit<Absence, 'id'>, force?: boolean) => Promise<void>;
   deleteAbsencesInRange: (userId: string, startDate: string, endDate: string, quiet?: boolean) => Promise<void>;
+  fetchRosterData: () => Promise<void>;
 }
 
 const RosterContext = React.createContext<RosterContextType | undefined>(undefined);
@@ -36,7 +38,7 @@ export function RosterProvider({ children }: { children: React.ReactNode }) {
   const addAbsence = async (absence: Omit<Absence, 'id'>, force: boolean = false) => {
     // Before adding, clear any existing absences in the same range if forcing
     if (force) {
-        await deleteAbsencesInRangeAction(absence.userId, absence.startDate, absence.endDate);
+        await deleteAbsencesInRangeAction(absence.userId, absence.startDate, absence.endDate, true);
     }
     
     const newAbsence = await addAbsenceAction(absence);
@@ -63,7 +65,7 @@ export function RosterProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <RosterContext.Provider value={{ absences, addAbsence, deleteAbsencesInRange }}>
+    <RosterContext.Provider value={{ absences, addAbsence, deleteAbsencesInRange, fetchRosterData }}>
       {children}
     </RosterContext.Provider>
   );

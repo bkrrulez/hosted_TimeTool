@@ -8,7 +8,8 @@ import { useToast } from '@/hooks/use-toast';
 import type { LogTimeFormValues } from '../components/log-time-dialog';
 import { useSystemLog } from './SystemLogContext';
 import { useAuth } from './AuthContext';
-import { getTimeEntries, logTime as logTimeAction, updateTimeEntry as updateTimeEntryAction, deleteTimeEntry as deleteTimeEntryAction } from '../actions';
+import { getTimeEntries, logTime as logTimeAction, updateTimeEntry as updateTimeEntryAction, deleteTimeEntry as deleteTimeEntryAction, deleteAbsencesInRange } from '../actions';
+import { useRoster } from './RosterContext';
 
 interface TimeTrackingContextType {
   timeEntries: TimeEntry[];
@@ -26,6 +27,7 @@ export function TimeTrackingProvider({ children }: { children: React.ReactNode }
   const { toast } = useToast();
   const { logAction } = useSystemLog();
   const { currentUser } = useAuth();
+  const { absences, fetchRosterData } = useRoster();
   
   const fetchEntries = React.useCallback(async () => {
     setIsLoading(true);
@@ -48,6 +50,7 @@ export function TimeTrackingProvider({ children }: { children: React.ReactNode }
       const start = new Date(`1970-01-01T${data.startTime}`);
       const end = new Date(`1970-01-01T${data.endTime}`);
       const duration = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+      const dateStr = format(data.date, 'yyyy-MM-dd');
 
       if (duration < 0) {
         toast({
@@ -57,6 +60,10 @@ export function TimeTrackingProvider({ children }: { children: React.ReactNode }
         });
         return { success: false };
       }
+
+      // Automatically clear any absence on the day work is being logged
+      await deleteAbsencesInRange(userId, dateStr, dateStr, true);
+      await fetchRosterData();
 
       const targetUser = allUsers.find(u => u.id === userId);
       if (targetUser && targetUser.contracts.length > 0) {
@@ -79,7 +86,7 @@ export function TimeTrackingProvider({ children }: { children: React.ReactNode }
 
       const newEntryData = {
         userId: userId,
-        date: format(data.date, 'yyyy-MM-dd'),
+        date: dateStr,
         startTime: data.startTime,
         endTime: data.endTime,
         projectId: data.project,
@@ -186,5 +193,3 @@ export const useTimeTracking = () => {
   }
   return context;
 };
-
-    
