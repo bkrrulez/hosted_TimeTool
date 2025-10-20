@@ -10,6 +10,7 @@ import { Calendar as CalendarIcon } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -20,38 +21,93 @@ import { AbsenceType } from '../../contexts/RosterContext';
 
 const absenceSchema = z.object({
   userId: z.string().min(1, 'Please select a member.'),
-  date: z.object({
-    from: z.date({ required_error: 'A start date is required.' }),
-    to: z.date({ required_error: 'An end date is required.' }),
-  }),
   type: z.enum(['General Absence', 'Sick Leave', 'Clear Absence/ Work', 'In Office', 'Home Office']),
+  absenceSpan: z.enum(['One Time', 'Recurring']),
+  oneTimeDate: z.object({
+    from: z.date().optional(),
+    to: z.date().optional(),
+  }).optional(),
+  recurringStartDate: z.date().optional(),
+  recurringEndDate: z.date().optional(),
+  daysOfWeek: z.array(z.string()).optional(),
+}).refine(data => {
+    if (data.absenceSpan === 'One Time') {
+        return !!data.oneTimeDate?.from && !!data.oneTimeDate?.to;
+    }
+    return true;
+}, {
+    message: 'A date range is required for one-time absences.',
+    path: ['oneTimeDate'],
+}).refine(data => {
+    if (data.absenceSpan === 'Recurring') {
+        return !!data.recurringStartDate && !!data.recurringEndDate;
+    }
+    return true;
+}, {
+    message: 'Start and end dates are required for recurring absences.',
+    path: ['recurringStartDate'],
+}).refine(data => {
+    if (data.absenceSpan === 'Recurring') {
+        return data.daysOfWeek && data.daysOfWeek.length > 0;
+    }
+    return true;
+}, {
+    message: 'Please select at least one day of the week.',
+    path: ['daysOfWeek'],
 });
 
 type AbsenceFormValues = z.infer<typeof absenceSchema>;
 
+export type AbsenceSubmitData = {
+    userId: string;
+    type: AbsenceType;
+    absenceSpan: 'One Time' | 'Recurring';
+    oneTimeDate?: { from: Date; to: Date };
+    recurringStartDate?: Date;
+    recurringEndDate?: Date;
+    daysOfWeek?: string[];
+}
+
 interface MarkAbsenceDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSave: (from: Date, to: Date, type: AbsenceType, userId: string, absenceId?: string) => void;
+  onSave: (data: AbsenceSubmitData) => void;
   userId?: string;
   members?: User[];
   isTeamView?: boolean;
   absence?: Absence | null;
 }
 
+const daysOfWeekOptions = [
+    { id: 'Mon', label: 'Mon' },
+    { id: 'Tue', label: 'Tue' },
+    { id: 'Wed', label: 'Wed' },
+    { id: 'Thu', label: 'Thu' },
+    { id: 'Fri', label: 'Fri' },
+];
+
 export function MarkAbsenceDialog({ isOpen, onOpenChange, onSave, userId, members, isTeamView = false, absence = null }: MarkAbsenceDialogProps) {
   const form = useForm<AbsenceFormValues>({
     resolver: zodResolver(absenceSchema),
     defaultValues: {
       userId: isTeamView ? '' : userId,
-      date: { from: new Date(), to: new Date() },
-      type: 'General Absence'
+      type: 'General Absence',
+      absenceSpan: 'One Time',
+      oneTimeDate: { from: new Date(), to: new Date() },
+      recurringStartDate: undefined,
+      recurringEndDate: undefined,
+      daysOfWeek: [],
     },
   });
 
-  const [isDatePickerOpen, setIsDatePickerOpen] = React.useState(false);
-  const [tempDateRange, setTempDateRange] = React.useState<DateRange | undefined>();
+  const [isOneTimePickerOpen, setIsOneTimePickerOpen] = React.useState(false);
+  const [tempOneTimeDate, setTempOneTimeDate] = React.useState<DateRange | undefined>();
+
+  const [isRecurStartPickerOpen, setIsRecurStartPickerOpen] = React.useState(false);
+  const [isRecurEndPickerOpen, setIsRecurEndPickerOpen] = React.useState(false);
   
+  const absenceSpanWatcher = form.watch('absenceSpan');
+
   React.useEffect(() => {
     if (isOpen) {
         if (absence) {
@@ -59,18 +115,23 @@ export function MarkAbsenceDialog({ isOpen, onOpenChange, onSave, userId, member
             const toDate = new Date(absence.endDate);
             form.reset({
                 userId: absence.userId,
-                date: { from: fromDate, to: toDate },
-                type: absence.type
+                type: absence.type,
+                absenceSpan: 'One Time',
+                oneTimeDate: { from: fromDate, to: toDate },
             });
-            setTempDateRange({ from: fromDate, to: toDate });
+            setTempOneTimeDate({ from: fromDate, to: toDate });
         } else {
             const defaultDate = new Date();
             form.reset({
                 userId: isTeamView ? '' : userId,
-                date: { from: defaultDate, to: defaultDate },
-                type: 'General Absence'
+                type: 'General Absence',
+                absenceSpan: 'One Time',
+                oneTimeDate: { from: defaultDate, to: defaultDate },
+                recurringStartDate: undefined,
+                recurringEndDate: undefined,
+                daysOfWeek: [],
             });
-            setTempDateRange({ from: defaultDate, to: defaultDate });
+            setTempOneTimeDate({ from: defaultDate, to: defaultDate });
         }
     }
   }, [isOpen, absence, form, isTeamView, userId]);
@@ -78,16 +139,29 @@ export function MarkAbsenceDialog({ isOpen, onOpenChange, onSave, userId, member
 
   function onSubmit(data: AbsenceFormValues) {
     const targetUserId = isTeamView ? data.userId : userId;
-    if (data.date.from && data.date.to && targetUserId) {
-      onSave(data.date.from, data.date.to, data.type as AbsenceType, targetUserId, absence?.id);
+    if (targetUserId) {
+        const submitData: AbsenceSubmitData = {
+            userId: targetUserId,
+            type: data.type as AbsenceType,
+            absenceSpan: data.absenceSpan,
+        };
+
+        if (data.absenceSpan === 'One Time' && data.oneTimeDate?.from && data.oneTimeDate?.to) {
+            submitData.oneTimeDate = { from: data.oneTimeDate.from, to: data.oneTimeDate.to };
+        } else if (data.absenceSpan === 'Recurring' && data.recurringStartDate && data.recurringEndDate && data.daysOfWeek) {
+            submitData.recurringStartDate = data.recurringStartDate;
+            submitData.recurringEndDate = data.recurringEndDate;
+            submitData.daysOfWeek = data.daysOfWeek;
+        }
+      onSave(submitData);
     }
   }
 
   const handleDateSelect = (range: DateRange | undefined) => {
     if(range?.from && !range.to) {
-        setTempDateRange({from: range.from, to: range.from});
+        setTempOneTimeDate({from: range.from, to: range.from});
     } else {
-        setTempDateRange(range);
+        setTempOneTimeDate(range);
     }
   }
   
@@ -95,7 +169,7 @@ export function MarkAbsenceDialog({ isOpen, onOpenChange, onSave, userId, member
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>
@@ -103,7 +177,7 @@ export function MarkAbsenceDialog({ isOpen, onOpenChange, onSave, userId, member
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pl-1 pr-4">
             {isTeamView && members && (
                  <FormField
                     control={form.control}
@@ -128,64 +202,202 @@ export function MarkAbsenceDialog({ isOpen, onOpenChange, onSave, userId, member
                     )}
                 />
             )}
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Absence/ Work Dates</FormLabel>
-                  <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn("w-full justify-start text-left font-normal", !field.value?.from && "text-muted-foreground")}
-                           onClick={() => {
-                               setTempDateRange(field.value); // Sync temp state on open
-                               setIsDatePickerOpen(true)
-                           }}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {field.value?.from ? (
-                            field.value.to ? (
-                              <>
-                                {format(field.value.from, "LLL dd, y")} - {format(field.value.to, "LLL dd, y")}
-                              </>
-                            ) : (
-                              format(field.value.from, "LLL dd, y")
-                            )
-                          ) : (
-                            <span>Pick a date range</span>
-                          )}
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                       <Calendar
-                        initialFocus
-                        mode="range"
-                        defaultMonth={tempDateRange?.from}
-                        selected={tempDateRange}
-                        onSelect={handleDateSelect}
-                        numberOfMonths={2}
-                      />
-                       <div className="p-2 border-t flex justify-end">
-                            <Button size="sm" onClick={() => {
-                                if (tempDateRange?.from) {
-                                    field.onChange({
-                                        from: tempDateRange.from,
-                                        to: tempDateRange.to || tempDateRange.from,
-                                    });
-                                }
-                                setIsDatePickerOpen(false);
-                            }}>Ok</Button>
-                        </div>
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+             <FormField
+                control={form.control}
+                name="absenceSpan"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Absence/ Work Span</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={!!absence}>
+                        <FormControl>
+                            <SelectTrigger><SelectValue/></SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            <SelectItem value="One Time">One Time</SelectItem>
+                            <SelectItem value="Recurring">Recurring</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <FormMessage />
+                    </FormItem>
+                )}
+             />
+
+            {absenceSpanWatcher === 'Recurring' && (
+                <>
+                     <FormField
+                        control={form.control}
+                        name="daysOfWeek"
+                        render={() => (
+                        <FormItem>
+                            <FormLabel>Days of Week</FormLabel>
+                            <div className="flex items-center space-x-4">
+                            {daysOfWeekOptions.map((item) => (
+                                <FormField
+                                key={item.id}
+                                control={form.control}
+                                name="daysOfWeek"
+                                render={({ field }) => {
+                                    return (
+                                    <FormItem
+                                        key={item.id}
+                                        className="flex flex-row items-start space-x-2 space-y-0"
+                                    >
+                                        <FormControl>
+                                        <Checkbox
+                                            checked={field.value?.includes(item.id)}
+                                            onCheckedChange={(checked) => {
+                                            return checked
+                                                ? field.onChange([...(field.value || []), item.id])
+                                                : field.onChange(
+                                                    field.value?.filter(
+                                                    (value) => value !== item.id
+                                                    )
+                                                )
+                                            }}
+                                        />
+                                        </FormControl>
+                                        <FormLabel className="font-normal">
+                                        {item.label}
+                                        </FormLabel>
+                                    </FormItem>
+                                    )
+                                }}
+                                />
+                            ))}
+                            </div>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                       <FormField
+                            control={form.control}
+                            name="recurringStartDate"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-col">
+                                <FormLabel>Start Date</FormLabel>
+                                <Popover open={isRecurStartPickerOpen} onOpenChange={setIsRecurStartPickerOpen}>
+                                    <PopoverTrigger asChild>
+                                    <FormControl>
+                                        <Button variant="outline" className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                        {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        mode="single"
+                                        selected={field.value}
+                                        onSelect={(date) => {
+                                            field.onChange(date);
+                                            setIsRecurStartPickerOpen(false);
+                                        }}
+                                        initialFocus
+                                    />
+                                    </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="recurringEndDate"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-col">
+                                <FormLabel>End Date</FormLabel>
+                                <Popover open={isRecurEndPickerOpen} onOpenChange={setIsRecurEndPickerOpen}>
+                                    <PopoverTrigger asChild>
+                                    <FormControl>
+                                        <Button variant="outline" className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                        {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        mode="single"
+                                        selected={field.value}
+                                        onSelect={(date) => {
+                                            field.onChange(date);
+                                            setIsRecurEndPickerOpen(false);
+                                        }}
+                                        disabled={{ before: form.getValues('recurringStartDate') }}
+                                        initialFocus
+                                    />
+                                    </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                </>
+            )}
+
+            {absenceSpanWatcher === 'One Time' && (
+                 <FormField
+                    control={form.control}
+                    name="oneTimeDate"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                        <FormLabel>Absence/ Work Dates</FormLabel>
+                        <Popover open={isOneTimePickerOpen} onOpenChange={setIsOneTimePickerOpen}>
+                            <PopoverTrigger asChild>
+                            <FormControl>
+                                <Button
+                                variant={"outline"}
+                                className={cn("w-full justify-start text-left font-normal", !field.value?.from && "text-muted-foreground")}
+                                onClick={() => {
+                                    setTempOneTimeDate(field.value);
+                                    setIsOneTimePickerOpen(true)
+                                }}
+                                >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {field.value?.from ? (
+                                    field.value.to ? (
+                                    <>
+                                        {format(field.value.from, "LLL dd, y")} - {format(field.value.to, "LLL dd, y")}
+                                    </>
+                                    ) : (
+                                    format(field.value.from, "LLL dd, y")
+                                    )
+                                ) : (
+                                    <span>Pick a date range</span>
+                                )}
+                                </Button>
+                            </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                                initialFocus
+                                mode="range"
+                                defaultMonth={tempOneTimeDate?.from}
+                                selected={tempOneTimeDate}
+                                onSelect={handleDateSelect}
+                                numberOfMonths={2}
+                            />
+                            <div className="p-2 border-t flex justify-end">
+                                    <Button size="sm" onClick={() => {
+                                        if (tempOneTimeDate?.from) {
+                                            field.onChange({
+                                                from: tempOneTimeDate.from,
+                                                to: tempOneTimeDate.to || tempOneTimeDate.from,
+                                            });
+                                        }
+                                        setIsOneTimePickerOpen(false);
+                                    }}>Ok</Button>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            )}
+           
             <FormField
               control={form.control}
               name="type"

@@ -13,6 +13,8 @@ export type Absence = {
   startDate: string;
   endDate: string;
   type: 'General Absence' | 'Sick Leave' | 'In Office' | 'Home Office';
+  absenceSpan?: 'One Time' | 'Recurring';
+  daysOfWeek?: string[];
 };
 
 export type User = {

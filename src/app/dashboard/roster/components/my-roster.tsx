@@ -10,8 +10,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTimeTracking } from '../../contexts/TimeTrackingContext';
 import { useHolidays } from '../../contexts/HolidaysContext';
 import { useRoster, AbsenceType } from '../../contexts/RosterContext';
-import { getDay, getYear, min, max, format, DayProps, isSameDay, addDays } from 'date-fns';
-import { MarkAbsenceDialog } from './mark-absence-dialog';
+import { getDay, getYear, min, max, format, DayProps, isSameDay, addDays, isWithinInterval } from 'date-fns';
+import { MarkAbsenceDialog, AbsenceSubmitData } from './mark-absence-dialog';
 import type { Absence } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -74,98 +74,108 @@ export function MyRoster() {
         setSelectedDate(prevDate => new Date(prevDate.getFullYear(), prevDate.getMonth() + 1, 1));
     };
 
-    const handleAbsenceSave = async (from: Date, to: Date, type: AbsenceType, userId: string) => {
-        const startDateStr = format(from, 'yyyy-MM-dd');
-        const endDateStr = format(to, 'yyyy-MM-dd');
+     const handleAbsenceSave = async (data: AbsenceSubmitData) => {
+        const { userId, type, absenceSpan } = data;
+
+        const dateRanges: { from: Date, to: Date }[] = [];
+
+        if (absenceSpan === 'One Time' && data.oneTimeDate) {
+            dateRanges.push(data.oneTimeDate);
+        } else if (absenceSpan === 'Recurring' && data.recurringStartDate && data.recurringEndDate && data.daysOfWeek) {
+            const dayMap: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5 };
+            const selectedDays = data.daysOfWeek.map(d => dayMap[d]);
+
+            for (let d = new Date(data.recurringStartDate); d <= data.recurringEndDate; d = addDays(d, 1)) {
+                if (selectedDays.includes(getDay(d))) {
+                    dateRanges.push({ from: d, to: d });
+                }
+            }
+        }
         
+        const member = currentUser; // Assuming this is "My Roster"
+        if (!member) return;
+
+        const validDateRanges = dateRanges.filter(range => {
+            const contractStart = new Date(member.contract.startDate);
+            const contractEnd = member.contract.endDate ? new Date(member.contract.endDate) : new Date('9999-12-31');
+            const isInContract = isWithinInterval(range.from, { start: contractStart, end: contractEnd }) && isWithinInterval(range.to, { start: contractStart, end: contractEnd });
+            if (!isInContract) {
+                 toast({
+                    variant: 'destructive',
+                    title: 'Date Out of Range',
+                    description: "Selected date range is beyond your contract period. Kindly contact your Admin.",
+                });
+            }
+            return isInContract;
+        });
+
+        if (validDateRanges.length === 0 && dateRanges.length > 0) {
+            return;
+        }
+
         if (type === 'Clear Absence/ Work') {
-            await deleteAbsencesInRange(userId, startDateStr, endDateStr, false);
+            for (const range of validDateRanges) {
+                 await deleteAbsencesInRange(userId, format(range.from, 'yyyy-MM-dd'), format(range.to, 'yyyy-MM-dd'), false);
+            }
             setIsAbsenceDialogOpen(false);
             setEditingAbsence(null);
             return;
         }
+        
+        const processAbsence = async (from: Date, to: Date, force: boolean = false) => {
+            const startDateStr = format(from, 'yyyy-MM-dd');
+            const endDateStr = format(to, 'yyyy-MM-dd');
 
-        const absenceChunks: { from: Date, to: Date }[] = [];
-        let currentChunkStart: Date | null = null;
-        const allHolidays = [...publicHolidays, ...customHolidays];
-
-        for (let dt = new Date(from); dt <= to; dt = addDays(dt, 1)) {
-            const dayOfWeek = getDay(dt);
-            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-            const isHoliday = allHolidays.some(h => isSameDay(new Date(h.date), dt));
-            const isWorkingDay = !isWeekend && !isHoliday;
-
-            if (isWorkingDay) {
-                if (currentChunkStart === null) {
-                    currentChunkStart = dt;
+            const workDaysInPeriod = timeEntries.some(entry => {
+                if (entry.userId === userId) {
+                    const entryDayStr = entry.date.split('T')[0];
+                    return entryDayStr >= startDateStr && entryDayStr <= endDateStr;
                 }
-            } else {
-                if (currentChunkStart !== null) {
-                    absenceChunks.push({ from: currentChunkStart, to: addDays(dt, -1) });
-                    currentChunkStart = null;
-                }
+                return false;
+            });
+
+            if (workDaysInPeriod) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Logged Work Conflict',
+                    description: `Range ${startDateStr} to ${endDateStr} contains logged work and cannot be marked as an absence.`
+                });
+                return;
             }
-        }
-        if (currentChunkStart !== null) {
-            absenceChunks.push({ from: currentChunkStart, to: to });
+
+            await addAbsence({ userId, startDate: startDateStr, endDate: endDateStr, type }, force);
+        };
+        
+        let requiresOverwrite = false;
+        for (const range of validDateRanges) {
+            const startDateStr = format(range.from, 'yyyy-MM-dd');
+            const endDateStr = format(range.to, 'yyyy-MM-dd');
+            const overlappingAbsences = absences.filter(a =>
+                a.userId === userId && (startDateStr <= a.endDate.split('T')[0] && endDateStr >= a.startDate.split('T')[0])
+            );
+            if (overlappingAbsences.length > 0) {
+                requiresOverwrite = true;
+                break;
+            }
         }
         
-        if (absenceChunks.length === 0) {
-            toast({
-                variant: 'destructive',
-                title: 'No Working Days',
-                description: 'The selected date range contains no working days to mark as an absence.'
-            });
-            return;
-        }
-
-        const saveAction = async (force: boolean = false) => {
-            for (const chunk of absenceChunks) {
-                const chunkStartStr = format(chunk.from, 'yyyy-MM-dd');
-                const chunkEndStr = format(chunk.to, 'yyyy-MM-dd');
-
-                const workDaysInPeriod = timeEntries.some(entry => {
-                    if (entry.userId === userId) {
-                        const entryDayStr = entry.date.split('T')[0];
-                        return entryDayStr >= chunkStartStr && entryDayStr <= chunkEndStr;
-                    }
-                    return false;
-                });
-
-                if (workDaysInPeriod) {
-                    toast({
-                        variant: 'destructive',
-                        title: 'Logged Work Conflict',
-                        description: `Range ${chunkStartStr} to ${chunkEndStr} contains logged work and cannot be marked as an absence.`
-                    });
-                    continue; // Skip this chunk but try to save others
-                }
-                
-                await addAbsence({ userId, startDate: chunkStartStr, endDate: chunkEndStr, type: type as Absence['type'] }, force);
-            }
+        const saveAction = (force: boolean) => {
+            validDateRanges.forEach(range => processAbsence(range.from, range.to, force));
             setIsAbsenceDialogOpen(false);
             setEditingAbsence(null);
         };
 
-        const overlappingAbsences = absences.filter(a => {
-            if (a.userId !== userId) return false;
-            const existingStart = a.startDate.split('T')[0];
-            const existingEnd = a.endDate.split('T')[0];
-            return (startDateStr <= existingEnd && endDateStr >= existingStart);
-        });
-
-        if (overlappingAbsences.length > 0) {
-            const overlappingTypes = Array.from(new Set(overlappingAbsences.map(a => a.type)));
-            setOverwriteConfirmation({
+        if (requiresOverwrite) {
+             setOverwriteConfirmation({
                 show: true,
-                message: `This range overlaps with existing absences (${overlappingTypes.join(', ')}). Do you want to overwrite?`,
+                message: `This range overlaps with existing absences. Do you want to overwrite?`,
                 onConfirm: () => {
                     saveAction(true);
                     setOverwriteConfirmation({ show: false, message: '', onConfirm: () => {} });
                 }
             });
         } else {
-            saveAction();
+            saveAction(false);
         }
     };
     
