@@ -1101,11 +1101,8 @@ export async function getAbsences(): Promise<Absence[]> {
         const result = await db.query('SELECT * FROM absences');
         return result.rows.map(mapDbAbsence);
     } catch (error: any) {
-        if (error.code === '42P01') { // table does not exist
-            console.warn('Absences table not found, returning empty array.');
-            return [];
-        }
-        throw error;
+        console.error("Failed to get absences:", error);
+        return [];
     }
 }
 
@@ -1471,6 +1468,7 @@ export async function setSystemSetting(key: string, value: string): Promise<void
     
 
     
+
 
 
 
