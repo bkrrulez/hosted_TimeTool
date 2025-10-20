@@ -94,7 +94,7 @@ export function MarkAbsenceDialog({ isOpen, onOpenChange, onSave, userId, member
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{absence ? 'Update' : 'Mark'} Absence</DialogTitle>
+          <DialogTitle>Update My Roster</DialogTitle>
           <DialogDescription>
             Select a date range and absence type to mark on the roster.
           </DialogDescription>
