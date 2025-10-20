@@ -89,12 +89,14 @@ export function MarkAbsenceDialog({ isOpen, onOpenChange, onSave, userId, member
         setTempDateRange(range);
     }
   }
+  
+  const dialogTitle = isTeamView ? "Update Roster" : "Update My Roster";
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Update My Roster</DialogTitle>
+          <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>
             Select a date range and absence type to mark on the roster.
           </DialogDescription>
