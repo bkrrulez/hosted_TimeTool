@@ -342,7 +342,7 @@ export function IndividualReport() {
         const titleStyle = { font: { bold: true, sz: 14 } };
         const headerStyle = { font: { bold: true }, fill: { fgColor: { rgb: "E0E0E0" } }, border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } } };
         const userRowStyle = { fill: { fgColor: { rgb: "DDEBF7" } }, border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } } };
-        const dataRowStyle = { border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } } };
+        const dataRowStyle = { border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }, alignment: { wrapText: true } };
         
         const aoa: any[][] = [];
         
@@ -371,7 +371,7 @@ export function IndividualReport() {
         aoa.push([]);
 
         // Time Entries
-        const timeEntryHeaders = [t('date'), t('project'), t('task'), '', '', '', t('loggedHours'), ''];
+        const timeEntryHeaders = [t('date'), t('project'), t('task'), '', '', '', t('loggedHours'), '', 'Remarks'];
         aoa.push(timeEntryHeaders.map(h => ({v: h, s: headerStyle})));
 
         const userEntriesForMonth = timeEntries.filter(entry => entry.userId === selectedUser.id && isSameMonth(parseISO(entry.date), selectedDate)).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -388,6 +388,7 @@ export function IndividualReport() {
                 {v: '', s: dataRowStyle },
                 {v: round(entry.duration), t: 'n', s: {...dataRowStyle, ...numberFormat} },
                 {v: '', s: dataRowStyle },
+                {v: entry.remarks || '', s: dataRowStyle}
             ]);
         });
         
@@ -400,6 +401,10 @@ export function IndividualReport() {
                 ...aoa.map(row => row[i]?.v?.toString().length || 0)
             ) + 2
         }));
+        
+        // Specific width for Remarks column
+        colWidths[8] = { wch: 40 };
+
         worksheet['!cols'] = colWidths;
 
         const workbook = XLSX.utils.book_new();
