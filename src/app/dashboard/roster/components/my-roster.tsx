@@ -12,7 +12,7 @@ import { useHolidays } from '../../contexts/HolidaysContext';
 import { useRoster, AbsenceType } from '../../contexts/RosterContext';
 import { getDay, getYear, min, max, format, DayProps, isSameDay, addDays, isWithinInterval } from 'date-fns';
 import { MarkAbsenceDialog, AbsenceSubmitData } from './mark-absence-dialog';
-import type { Absence } from '@/lib/types';
+import type { Absence, PublicHoliday, CustomHoliday } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -74,6 +74,15 @@ export function MyRoster() {
         setSelectedDate(prevDate => new Date(prevDate.getFullYear(), prevDate.getMonth() + 1, 1));
     };
 
+    const isWorkingDay = (date: Date): boolean => {
+        const day = getDay(date);
+        if (day === 0 || day === 6) return false; // Weekend
+        const isPublic = publicHolidays.some((h: PublicHoliday) => isSameDay(new Date(h.date), date));
+        if (isPublic) return false; // Public Holiday
+        return true;
+    };
+
+
      const handleAbsenceSave = async (data: AbsenceSubmitData) => {
         const { userId, type, absenceSpan } = data;
 
@@ -92,7 +101,7 @@ export function MyRoster() {
             }
         }
         
-        const member = currentUser; // Assuming this is "My Roster"
+        const member = currentUser;
         if (!member) return;
 
         const validDateRanges = dateRanges.filter(range => {
@@ -122,45 +131,56 @@ export function MyRoster() {
             return;
         }
         
-        const processAbsence = async (from: Date, to: Date, force: boolean = false) => {
-            const startDateStr = format(from, 'yyyy-MM-dd');
-            const endDateStr = format(to, 'yyyy-MM-dd');
+        const processDay = async (date: Date, force: boolean = false) => {
+            if (!isWorkingDay(date)) return;
 
-            const workDaysInPeriod = timeEntries.some(entry => {
-                if (entry.userId === userId) {
-                    const entryDayStr = entry.date.split('T')[0];
-                    return entryDayStr >= startDateStr && entryDayStr <= endDateStr;
-                }
-                return false;
-            });
+            const dateStr = format(date, 'yyyy-MM-dd');
+            const hasLoggedWork = timeEntries.some(entry => 
+                entry.userId === userId && isSameDay(new Date(entry.date), date)
+            );
 
-            if (workDaysInPeriod) {
+            if (hasLoggedWork) {
                 toast({
                     variant: 'destructive',
                     title: 'Logged Work Conflict',
-                    description: `Range ${startDateStr} to ${endDateStr} contains logged work and cannot be marked as an absence.`
+                    description: `Date ${dateStr} contains logged work and cannot be marked as an absence.`
                 });
                 return;
             }
 
-            await addAbsence({ userId, startDate: startDateStr, endDate: endDateStr, type }, force);
+            const hasExistingAbsence = absences.some(a => 
+                a.userId === userId && isSameDay(new Date(a.startDate), date)
+            );
+
+            if (hasExistingAbsence && !force) {
+                return 'overwrite';
+            }
+
+            await addAbsence({ userId, startDate: dateStr, endDate: dateStr, type }, force);
         };
         
         let requiresOverwrite = false;
         for (const range of validDateRanges) {
-            const startDateStr = format(range.from, 'yyyy-MM-dd');
-            const endDateStr = format(range.to, 'yyyy-MM-dd');
-            const overlappingAbsences = absences.filter(a =>
-                a.userId === userId && (startDateStr <= a.endDate.split('T')[0] && endDateStr >= a.startDate.split('T')[0])
-            );
-            if (overlappingAbsences.length > 0) {
-                requiresOverwrite = true;
-                break;
+            for (let d = range.from; d <= range.to; d = addDays(d, 1)) {
+                if(isWorkingDay(d)) {
+                    const hasExistingAbsence = absences.some(a =>
+                        a.userId === userId && isSameDay(new Date(a.startDate), d)
+                    );
+                    if(hasExistingAbsence) {
+                        requiresOverwrite = true;
+                        break;
+                    }
+                }
             }
+            if(requiresOverwrite) break;
         }
-        
+
         const saveAction = (force: boolean) => {
-            validDateRanges.forEach(range => processAbsence(range.from, range.to, force));
+            validDateRanges.forEach(range => {
+                for (let d = range.from; d <= range.to; d = addDays(d, 1)) {
+                    processDay(d, force);
+                }
+            });
             setIsAbsenceDialogOpen(false);
             setEditingAbsence(null);
         };

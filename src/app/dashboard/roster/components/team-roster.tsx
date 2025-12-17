@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { MarkAbsenceDialog, AbsenceSubmitData } from './mark-absence-dialog';
-import { User, Absence } from '@/lib/types';
+import { User, Absence, PublicHoliday, CustomHoliday } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -101,6 +101,15 @@ export function TeamRoster() {
         return sortDirection === 'asc' ? <ArrowUpDown className="ml-2 h-4 w-4" /> : <ArrowUpDown className="ml-2 h-4 w-4" />;
     };
 
+    const isWorkingDay = (date: Date): boolean => {
+        const day = getDay(date);
+        if (day === 0 || day === 6) return false;
+        const isPublic = publicHolidays.some((h: PublicHoliday) => isSameDay(new Date(h.date), date));
+        if (isPublic) return false;
+        return true;
+    };
+
+
     const handleAbsenceSave = async (data: AbsenceSubmitData) => {
         const { userId, type, absenceSpan } = data;
 
@@ -149,45 +158,56 @@ export function TeamRoster() {
             return;
         }
 
-        const processAbsence = async (from: Date, to: Date, force: boolean = false) => {
-            const startDateStr = format(from, 'yyyy-MM-dd');
-            const endDateStr = format(to, 'yyyy-MM-dd');
-            
-            const workDaysInPeriod = timeEntries.some(entry => {
-                if (entry.userId === userId) {
-                    const entryDayStr = entry.date.split('T')[0];
-                    return entryDayStr >= startDateStr && entryDayStr <= endDateStr;
-                }
-                return false;
-            });
+        const processDay = async (date: Date, force: boolean = false) => {
+            if (!isWorkingDay(date)) return;
 
-            if (workDaysInPeriod) {
+            const dateStr = format(date, 'yyyy-MM-dd');
+            const hasLoggedWork = timeEntries.some(entry => 
+                entry.userId === userId && isSameDay(new Date(entry.date), date)
+            );
+
+            if (hasLoggedWork) {
                 toast({
                     variant: 'destructive',
                     title: 'Logged Work Conflict',
-                    description: `Range ${startDateStr} to ${endDateStr} contains logged work and cannot be marked as an absence.`
+                    description: `Date ${dateStr} for ${member.name} contains logged work and cannot be marked as an absence.`
                 });
                 return;
             }
+            
+            const hasExistingAbsence = absences.some(a => 
+                a.userId === userId && isSameDay(new Date(a.startDate), date)
+            );
 
-            await addAbsence({ userId, startDate: startDateStr, endDate: endDateStr, type }, force);
+            if (hasExistingAbsence && !force) {
+                return 'overwrite';
+            }
+
+            await addAbsence({ userId, startDate: dateStr, endDate: dateStr, type }, force);
         };
-
+        
         let requiresOverwrite = false;
         for (const range of validDateRanges) {
-            const startDateStr = format(range.from, 'yyyy-MM-dd');
-            const endDateStr = format(range.to, 'yyyy-MM-dd');
-            const overlappingAbsences = absences.filter(a =>
-                a.userId === userId && (startDateStr <= a.endDate.split('T')[0] && endDateStr >= a.startDate.split('T')[0])
-            );
-            if (overlappingAbsences.length > 0) {
-                requiresOverwrite = true;
-                break;
+            for (let d = range.from; d <= range.to; d = addDays(d, 1)) {
+                if(isWorkingDay(d)) {
+                    const hasExistingAbsence = absences.some(a =>
+                        a.userId === userId && isSameDay(new Date(a.startDate), d)
+                    );
+                    if(hasExistingAbsence) {
+                        requiresOverwrite = true;
+                        break;
+                    }
+                }
             }
+            if(requiresOverwrite) break;
         }
         
         const saveAction = (force: boolean) => {
-            validDateRanges.forEach(range => processAbsence(range.from, range.to, force));
+            validDateRanges.forEach(range => {
+                for (let d = range.from; d <= range.to; d = addDays(d, 1)) {
+                    processDay(d, force);
+                }
+            });
             setIsAbsenceDialogOpen(false);
             setEditingAbsence(null);
         };
@@ -195,7 +215,7 @@ export function TeamRoster() {
         if (requiresOverwrite) {
              setOverwriteConfirmation({
                 show: true,
-                message: `This range overlaps with existing absences. Do you want to overwrite?`,
+                message: `This range overlaps with existing absences for ${member.name}. Do you want to overwrite?`,
                 onConfirm: () => {
                     saveAction(true);
                     setOverwriteConfirmation({ show: false, message: '', onConfirm: () => {} });

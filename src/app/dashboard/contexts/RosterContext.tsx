@@ -2,10 +2,10 @@
 'use client';
 
 import * as React from 'react';
-import { type Absence } from "@/lib/types";
+import { type Absence, PublicHoliday, CustomHoliday } from "@/lib/types";
 import { addAbsence as addAbsenceAction, getAbsences, deleteAbsencesInRange as deleteAbsencesInRangeAction } from '../actions';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, getDay, isSameDay } from 'date-fns';
 
 export type AbsenceType = 'General Absence' | 'Sick Leave' | 'Clear Absence/ Work' | 'In Office' | 'Home Office';
 

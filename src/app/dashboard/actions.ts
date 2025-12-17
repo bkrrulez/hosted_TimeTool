@@ -1102,7 +1102,11 @@ export async function getAbsences(): Promise<Absence[]> {
         return result.rows.map(mapDbAbsence);
     } catch (error: any) {
         console.error("Failed to get absences:", error);
-        return [];
+        if (error.code === '42P01') { 
+            console.warn('Absences table not found. Returning empty array.');
+            return [];
+        }
+        throw error;
     }
 }
 
@@ -1118,6 +1122,10 @@ export async function addAbsence(absence: Omit<Absence, 'id'>): Promise<Absence 
         return mapDbAbsence(result.rows[0]);
     } catch (error) {
         console.error("Failed to add absence", error);
+        if ((error as any).code === '42P01') {
+             console.warn('Absences table not found. Cannot add absence.');
+             return null;
+        }
         return null;
     }
 }
@@ -1468,6 +1476,7 @@ export async function setSystemSetting(key: string, value: string): Promise<void
     
 
     
+
 
 
 
