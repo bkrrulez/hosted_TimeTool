@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from 'react';
@@ -301,7 +300,7 @@ export default function ReportsPage() {
         };
     });
 
-    // Calculations for all views
+    // Calculations for all views - Raw Logged Hours
     filteredTimeEntries.forEach(entry => {
         const [projectName, ...taskParts] = entry.task.split(' - ');
         const taskName = taskParts.join(' - ') || 'Unspecified';
@@ -337,75 +336,92 @@ export default function ReportsPage() {
         }
     });
 
-    const yearStart = startOfYear(new Date(selectedYear, 0, 1));
-    const yearEnd = endOfYear(new Date(selectedYear, 11, 31));
-    const publicHolidaysInYear = publicHolidays.filter(h => getYear(parseISO(h.date)) === selectedYear);
+    // Breakdown range into monthly segments for accurate year-specific calculations
+    const monthSegments: { start: Date; end: Date; year: number }[] = [];
+    let current = new Date(periodStart);
+    while (current <= periodEnd) {
+        const segStart = max([current, startOfMonth(current)]);
+        const segEnd = min([periodEnd, endOfMonth(current)]);
+        monthSegments.push({ start: segStart, end: segEnd, year: getYear(current) });
+        current = startOfMonth(addDays(endOfMonth(current), 1));
+    }
+
+    // Pre-calculate stats per encountered year
+    const uniqueYears = Array.from(new Set(monthSegments.map(s => s.year)));
+    const yearStats: Record<number, { dailyLeaveCredit: number; publicHolidays: any[] }> = {};
+    uniqueYears.forEach(year => {
+        const yStart = startOfYear(new Date(year, 0, 1));
+        const yEnd = endOfYear(new Date(year, 0, 1));
+        const phInYear = publicHolidays.filter(h => getYear(parseISO(h.date)) === year);
+        
+        let standardWorkingDays = 0;
+        for (let d = new Date(yStart); d <= yEnd; d = addDays(d, 1)) {
+            const dayOfWeek = getDay(d);
+            if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+            if (phInYear.some(h => isSameDay(parseISO(h.date), d))) continue;
+            standardWorkingDays++;
+        }
+        yearStats[year] = { 
+            dailyLeaveCredit: standardWorkingDays > 0 ? annualLeaveAllowance / standardWorkingDays : 0, 
+            publicHolidays: phInYear 
+        };
+    });
 
     const consolidatedData = visibleMembers.map(member => {
-      
-      const userHolidaysInYear = publicHolidaysInYear
-        .concat(customHolidays.filter(h => {
-            if (getYear(parseISO(h.date)) !== selectedYear) return false;
-            const applies = (h.appliesTo === 'all-members') || (h.appliesTo === 'all-teams' && !!member.teamId) || (h.appliesTo === member.teamId);
-            return applies;
-        }));
+        let totalAssigned = 0;
+        let totalLeave = 0;
 
-      let assignedHoursInPeriod = 0;
-      let workingDaysInPeriod = 0;
+        monthSegments.forEach(seg => {
+            const stats = yearStats[seg.year];
+            const userHolidaysInYear = stats.publicHolidays.concat(
+                customHolidays.filter(h => {
+                    if (getYear(parseISO(h.date)) !== seg.year) return false;
+                    const applies = (h.appliesTo === 'all-members') || (h.appliesTo === 'all-teams' && !!member.teamId) || (h.appliesTo === member.teamId);
+                    return applies;
+                })
+            );
 
-      for (let d = new Date(periodStart); d <= periodEnd; d = addDays(d, 1)) {
-          const dayOfWeek = getDay(d);
-          if (dayOfWeek === 0 || dayOfWeek === 6) continue;
-          
-          const isHoliday = userHolidaysInYear.some(h => isSameDay(parseISO(h.date), d));
-          if (isHoliday) continue;
-          
-          const activeContractsOnDay = member.contracts.filter(c => {
-              const contractStart = parseISO(c.startDate);
-              const contractEnd = c.endDate ? parseISO(c.endDate) : yearEnd;
-              return isWithinInterval(d, { start: contractStart, end: contractEnd });
-          });
+            let assignedInSeg = 0;
+            let workingDaysInSeg = 0;
 
-          if (activeContractsOnDay.length > 0) {
-              workingDaysInPeriod++;
-              const dailyHours = activeContractsOnDay.reduce((sum, c) => sum + c.weeklyHours, 0) / 5;
-              assignedHoursInPeriod += dailyHours;
-          }
-      }
-      
-      const assignedHours = parseFloat(assignedHoursInPeriod.toFixed(2));
-      
-      // --- Leave Calculation ---
-      let standardWorkingDaysInYear = 0;
-      for (let d = new Date(yearStart); d <= yearEnd; d = addDays(d,1)) {
-          const dayOfWeek = getDay(d);
-          if (dayOfWeek === 0 || dayOfWeek === 6) continue;
-          const isPublicHoliday = publicHolidaysInYear.some(h => isSameDay(parseISO(h.date), d));
-          if (isPublicHoliday) continue;
-          standardWorkingDaysInYear++;
-      }
-      
-      const dailyLeaveCredit = standardWorkingDaysInYear > 0 ? annualLeaveAllowance / standardWorkingDaysInYear : 0;
-      const leaveDaysInPeriod = workingDaysInPeriod * dailyLeaveCredit;
-      const avgDailyHoursInPeriod = workingDaysInPeriod > 0 ? assignedHours / workingDaysInPeriod : 0;
-      const leaveHours = parseFloat((leaveDaysInPeriod * avgDailyHoursInPeriod).toFixed(2));
+            for (let d = new Date(seg.start); d <= seg.end; d = addDays(d, 1)) {
+                const dayOfWeek = getDay(d);
+                if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+                if (userHolidaysInYear.some(h => isSameDay(parseISO(h.date), d))) continue;
 
-      const expectedHours = parseFloat((assignedHours - leaveHours).toFixed(2));
-      
-      const memberTimeEntries = filteredTimeEntries.filter(e => e.userId === member.id);
-      const loggedHours = parseFloat(memberTimeEntries.reduce((acc, e) => acc + e.duration, 0).toFixed(2));
-      const inOfficeHours = memberTimeEntries.filter(e => e.placeOfWork === 'In Office').reduce((acc, e) => acc + e.duration, 0);
-      const inOfficePercentage = loggedHours > 0 ? (inOfficeHours / loggedHours) * 100 : 0;
+                const activeContractsOnDay = member.contracts.filter(c => {
+                    const contractStart = parseISO(c.startDate);
+                    const contractEnd = c.endDate ? parseISO(c.endDate) : endOfYear(new Date(seg.year, 0, 1));
+                    return isWithinInterval(d, { start: contractStart, end: contractEnd });
+                });
 
-      const remainingHours = parseFloat((expectedHours - loggedHours).toFixed(2));
-      
-      if (detailedAgg[member.id]) {
-          detailedAgg[member.id].projects.forEach(p => p.loggedHours = parseFloat(p.loggedHours.toFixed(2)));
-          detailedAgg[member.id].projects.forEach(p => p.tasks.forEach(t => t.loggedHours = parseFloat(t.loggedHours.toFixed(2))));
-          detailedAgg[member.id] = { ...detailedAgg[member.id], assignedHours, leaveHours, expectedHours, loggedHours, remainingHours };
-      }
+                if (activeContractsOnDay.length > 0) {
+                    workingDaysInSeg++;
+                    const dailyHours = activeContractsOnDay.reduce((sum, c) => sum + c.weeklyHours, 0) / 5;
+                    assignedInSeg += dailyHours;
+                }
+            }
 
-      return { ...member, assignedHours, leaveHours, expectedHours, loggedHours, remainingHours, inOfficePercentage };
+            totalAssigned += assignedInSeg;
+            // Leave credit is calculated segment-by-segment using segment-specific average daily hours
+            totalLeave += workingDaysInSeg * stats.dailyLeaveCredit * (workingDaysInSeg > 0 ? assignedInSeg / workingDaysInSeg : 0);
+        });
+
+        const assignedHours = parseFloat(totalAssigned.toFixed(2));
+        const leaveHours = parseFloat(totalLeave.toFixed(2));
+        const expectedHours = parseFloat((assignedHours - leaveHours).toFixed(2));
+        
+        const memberTimeEntries = filteredTimeEntries.filter(e => e.userId === member.id);
+        const loggedHours = parseFloat(memberTimeEntries.reduce((acc, e) => acc + e.duration, 0).toFixed(2));
+        const inOfficeHours = memberTimeEntries.filter(e => e.placeOfWork === 'In Office').reduce((acc, e) => acc + e.duration, 0);
+        const inOfficePercentage = loggedHours > 0 ? (inOfficeHours / loggedHours) * 100 : 0;
+        const remainingHours = parseFloat((expectedHours - loggedHours).toFixed(2));
+        
+        if (detailedAgg[member.id]) {
+            detailedAgg[member.id] = { ...detailedAgg[member.id], assignedHours, leaveHours, expectedHours, loggedHours, remainingHours };
+        }
+
+        return { ...member, assignedHours, leaveHours, expectedHours, loggedHours, remainingHours, inOfficePercentage };
     });
 
     const projectReport = Object.values(projectAgg).map(item => ({ ...item, loggedHours: parseFloat(item.loggedHours.toFixed(2))})).sort((a, b) => a.member.name.localeCompare(b.member.name));
