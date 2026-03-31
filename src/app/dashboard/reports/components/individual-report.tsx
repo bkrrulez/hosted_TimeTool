@@ -31,7 +31,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import type { User, TimeEntry } from '@/lib/types';
-import { addDays, getDay, isSameMonth, startOfMonth, isWithinInterval, getYear, parseISO, isSameDay, min as minDate, max as maxDate, getMonth, endOfYear, startOfYear, endOfMonth, format } from 'date-fns';
+import { addDays, getDay, isSameMonth, startOfMonth, isWithinInterval, getYear, parseISO, isSameDay, min as minDate, max as maxDate, getMonth, endOfYear, startOfYear, endOfMonth, format, startOfDay, endOfDay } from 'date-fns';
 import type { DayContentProps } from 'react-day-picker';
 import { DayDetailsDialog } from './day-details-dialog';
 import { useMembers } from '../../contexts/MembersContext';
