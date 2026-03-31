@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import * as React from 'react';
@@ -21,6 +19,17 @@ import {
 } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import type { User, TimeEntry } from '@/lib/types';
 import { addDays, getDay, isSameMonth, startOfMonth, isWithinInterval, getYear, parseISO, isSameDay, min as minDate, max as maxDate, getMonth, endOfYear, startOfYear, endOfMonth, format } from 'date-fns';
 import type { DayContentProps } from 'react-day-picker';
@@ -74,7 +83,6 @@ const DayContent: React.FC<DayContentProps> = (props) => {
   }
 
   const hours = monthlyData.dailyTotals[dayOfMonth];
-  const expectedHours = monthlyData.dailyExpected[dayOfMonth];
   const holidayName = monthlyData.dailyHolidayNames[dayOfMonth];
   const hasManualEntries = (monthlyData.dailyEntries[dayOfMonth] || []).length > 0;
   
@@ -101,11 +109,7 @@ const DayContent: React.FC<DayContentProps> = (props) => {
                 <span className="text-[10px] font-semibold text-green-600 truncate px-1">
                     {holidayName}
                 </span>
-            ) : /* expectedHours > 0 ? (
-                <span className="text-[10px] font-semibold text-orange-400">
-                    {t('expectedHoursShort', { hours: expectedHours.toFixed(1) })}
-                </span>
-            ) : */ <span className="h-[15px]" />
+            ) : <span className="h-[15px]" />
         ) : <span className="h-[15px]" />}
     </div>
   );
@@ -127,6 +131,7 @@ export function IndividualReport() {
     const [selectedDayForDialog, setSelectedDayForDialog] = React.useState<Date>(new Date());
     const [editingEntry, setEditingEntry] = React.useState<TimeEntry | null>(null);
     const [deletingEntry, setDeletingEntry] = React.useState<TimeEntry | null>(null);
+    const [isExportDialogOpen, setIsExportDialogOpen] = React.useState(false);
 
     const viewableUsers = React.useMemo(() => {
         let members: User[];
@@ -152,25 +157,6 @@ export function IndividualReport() {
         setSelectedUser(userToSelect);
     }, [targetUserId, viewableUsers, currentUser]);
 
-    React.useEffect(() => {
-        if (selectedUser) {
-          const now = new Date();
-          const year = selectedDate.getFullYear();
-          const currentMonth = now.getMonth();
-          const currentYear = now.getFullYear();
-
-          let defaultDate = new Date(year, selectedDate.getMonth(), 1);
-
-          // If the user's calendar for the current year is being viewed, default to the current month.
-          if (year === currentYear) {
-            defaultDate = new Date(year, currentMonth, 1);
-          }
-          
-          setSelectedDate(defaultDate);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedUser]);
-
     const { availableYears, availableMonths, minContractDate, maxContractDate } = React.useMemo(() => {
         if (!selectedUser || !selectedUser.contracts || selectedUser.contracts.length === 0) {
             const currentYear = new Date().getFullYear();
@@ -194,7 +180,6 @@ export function IndividualReport() {
     
         const year = selectedDate.getFullYear();
     
-        // Determine the start and end month for the selected year based on all contracts
         const contractsInYear = selectedUser.contracts.filter(c => {
             const contractStartYear = getYear(parseISO(c.startDate));
             const contractEndYear = c.endDate ? getYear(parseISO(c.endDate)) : year;
@@ -230,7 +215,6 @@ export function IndividualReport() {
     const dailyHolidayNames: Record<string, string> = {};
 
     const selectedYear = selectedDate.getFullYear();
-    const yearStart = startOfYear(selectedDate);
     const yearEnd = endOfYear(selectedDate);
     const publicHolidaysInYear = publicHolidays.filter(h => getYear(parseISO(h.date)) === selectedYear);
 
@@ -334,49 +318,112 @@ export function IndividualReport() {
         return teams.find(t => t.id === teamId)?.name || 'N/A';
     };
 
-    const handleExport = () => {
+    const handleExport = (periodStart: Date, periodEnd: Date) => {
         if (!selectedUser) return;
         
-        const title = `Report for ${format(selectedDate, 'MMMM yyyy')}`;
+        const title = `Report for ${format(periodStart, 'PP')} - ${format(periodEnd, 'PP')}`;
         const numberFormat = { z: '0.00' };
         const titleStyle = { font: { bold: true, sz: 14 } };
         const headerStyle = { font: { bold: true }, fill: { fgColor: { rgb: "E0E0E0" } }, border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } } };
         const userRowStyle = { fill: { fgColor: { rgb: "DDEBF7" } }, border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } } };
         const dataRowStyle = { border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }, alignment: { wrapText: true } };
         
-        const aoa: any[][] = [];
+        // --- CALCULATION LOGIC (Segmented for Accuracy) ---
+        const monthSegments: { start: Date; end: Date; year: number }[] = [];
+        let current = new Date(periodStart);
+        while (current <= periodEnd) {
+            const segStart = maxDate([current, startOfMonth(current)]);
+            const segEnd = minDate([periodEnd, endOfMonth(current)]);
+            monthSegments.push({ start: segStart, end: segEnd, year: getYear(current) });
+            current = startOfMonth(addDays(endOfMonth(current), 1));
+        }
+
+        const yearStats: Record<number, { dailyLeaveCredit: number; phInYear: any[] }> = {};
+        const uniqueYears = Array.from(new Set(monthSegments.map(s => s.year)));
+        uniqueYears.forEach(year => {
+            const yStart = startOfYear(new Date(year, 0, 1));
+            const yEnd = endOfYear(new Date(year, 0, 1));
+            const phInYear = publicHolidays.filter(h => getYear(parseISO(h.date)) === year);
+            let standardWorkDays = 0;
+            for (let d = new Date(yStart); d <= yEnd; d = addDays(d, 1)) {
+                if (getDay(d) === 0 || getDay(d) === 6) continue;
+                if (phInYear.some(h => isSameDay(parseISO(h.date), d))) continue;
+                standardWorkDays++;
+            }
+            yearStats[year] = { dailyLeaveCredit: standardWorkDays > 0 ? annualLeaveAllowance / standardWorkDays : 0, phInYear };
+        });
+
+        let totalAssigned = 0;
+        let totalLeave = 0;
+
+        monthSegments.forEach(seg => {
+            const stats = yearStats[seg.year];
+            const holidays = stats.phInYear.concat(customHolidays.filter(h => {
+                if (getYear(parseISO(h.date)) !== seg.year) return false;
+                const applies = (h.appliesTo === 'all-members') || (h.appliesTo === 'all-teams' && !!selectedUser.teamId) || (h.appliesTo === selectedUser.teamId);
+                return applies;
+            }));
+
+            let assignedInSeg = 0;
+            let workingDaysInSeg = 0;
+
+            for (let d = new Date(seg.start); d <= seg.end; d = addDays(d, 1)) {
+                if (getDay(d) === 0 || getDay(d) === 6) continue;
+                if (holidays.some(h => isSameDay(parseISO(h.date), d))) continue;
+                if (holidayRequests.some(req => req.userId === selectedUser.id && req.status === 'Approved' && isWithinInterval(d, { start: parseISO(req.startDate), end: parseISO(req.endDate) }))) continue;
+
+                const activeContracts = selectedUser.contracts.filter(c => {
+                    const cStart = parseISO(c.startDate);
+                    const cEnd = c.endDate ? parseISO(c.endDate) : endOfYear(new Date(seg.year, 0, 1));
+                    return isWithinInterval(d, { start: cStart, end: cEnd });
+                });
+
+                if (activeContracts.length > 0) {
+                    workingDaysInSeg++;
+                    assignedInSeg += activeContracts.reduce((sum, c) => sum + c.weeklyHours, 0) / 5;
+                }
+            }
+            totalAssigned += assignedInSeg;
+            totalLeave += workingDaysInSeg * stats.dailyLeaveCredit * (workingDaysInSeg > 0 ? assignedInSeg / workingDaysInSeg : 0);
+        });
+
+        const round = (num: number) => parseFloat(num.toFixed(2));
+        const assignedHours = round(totalAssigned);
+        const leaveHours = round(totalLeave);
+        const expectedHours = round(assignedHours - leaveHours);
         
-        // Title
+        const userEntriesForRange = timeEntries.filter(entry => 
+            entry.userId === selectedUser.id && 
+            isWithinInterval(parseISO(entry.date), { start: periodStart, end: periodEnd })
+        ).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        const loggedHours = round(userEntriesForRange.reduce((acc, e) => acc + e.duration, 0));
+        const remainingHours = round(expectedHours - loggedHours);
+
+        const aoa: any[][] = [];
         aoa.push([{v: title, s: titleStyle }]);
         aoa.push([]);
 
-        // Helper to round numbers
-        const round = (num: number) => parseFloat(num.toFixed(2));
-
-        // Consolidated Info
         const summaryHeaders = [t('member'), t('role'), t('team'), t('assignedHours'), t('leaveHours'), t('expected'), t('logged'), t('remaining')];
         const summaryData = [
             selectedUser.name,
             selectedUser.role,
             getTeamName(selectedUser.teamId),
-            { v: round(monthlyData.totalAssigned), t: 'n', s: {...userRowStyle, ...numberFormat}},
-            { v: round(monthlyData.totalLeave), t: 'n', s: {...userRowStyle, ...numberFormat}},
-            { v: round(monthlyData.totalExpected), t: 'n', s: {...userRowStyle, ...numberFormat}},
-            { v: round(monthlyData.totalLogged), t: 'n', s: {...userRowStyle, ...numberFormat}},
-            { v: round(monthlyData.totalExpected - monthlyData.totalLogged), t: 'n', s: {...userRowStyle, ...numberFormat}}
+            { v: assignedHours, t: 'n', s: {...userRowStyle, ...numberFormat}},
+            { v: leaveHours, t: 'n', s: {...userRowStyle, ...numberFormat}},
+            { v: expectedHours, t: 'n', s: {...userRowStyle, ...numberFormat}},
+            { v: loggedHours, t: 'n', s: {...userRowStyle, ...numberFormat}},
+            { v: remainingHours, t: 'n', s: {...userRowStyle, ...numberFormat, font: { color: { rgb: remainingHours < 0 ? "008000" : "000000" } }}}
         ];
 
         aoa.push(summaryHeaders.map(h => ({v: h, s: headerStyle})));
         aoa.push(summaryData.map((cell, i) => i < 3 ? {v: cell, s: userRowStyle} : cell));
         aoa.push([]);
 
-        // Time Entries
         const timeEntryHeaders = [t('date'), t('project'), t('task'), '', '', '', t('loggedHours'), '', 'Remarks'];
         aoa.push(timeEntryHeaders.map(h => ({v: h, s: headerStyle})));
 
-        const userEntriesForMonth = timeEntries.filter(entry => entry.userId === selectedUser.id && isSameMonth(parseISO(entry.date), selectedDate)).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        
-        userEntriesForMonth.forEach(entry => {
+        userEntriesForRange.forEach(entry => {
             const [project, ...taskParts] = entry.task.split(' - ');
             const task = taskParts.join(' - ');
             aoa.push([
@@ -393,23 +440,15 @@ export function IndividualReport() {
         });
         
         const worksheet = XLSX.utils.aoa_to_sheet(aoa);
-
-        // Calculate column widths
         const colWidths = summaryHeaders.map((h, i) => ({
-            wch: Math.max(
-                h.length,
-                ...aoa.map(row => row[i]?.v?.toString().length || 0)
-            ) + 2
+            wch: Math.max(h.length, ...aoa.map(row => row[i]?.v?.toString().length || 0)) + 2
         }));
-        
-        // Specific width for Remarks column
         colWidths[8] = { wch: 40 };
-
         worksheet['!cols'] = colWidths;
 
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Individual Report");
-        XLSX.writeFile(workbook, `individual_report_${selectedUser.name.replace(' ', '_')}_${format(selectedDate, 'MM-yyyy')}.xlsx`);
+        XLSX.writeFile(workbook, `individual_report_${selectedUser.name.replace(/\s+/g, '_')}_${format(periodStart, 'yyyyMMdd')}_${format(periodEnd, 'yyyyMMdd')}.xlsx`);
     };
 
     const handleUserChange = (userId: string) => {
@@ -457,7 +496,7 @@ export function IndividualReport() {
         if (!deletingEntry) return;
         await deleteTimeEntry(deletingEntry.id);
         setDeletingEntry(null);
-        setIsDetailsDialogOpen(false); // Close details dialog after deletion
+        setIsDetailsDialogOpen(false);
     };
 
 
@@ -496,7 +535,7 @@ export function IndividualReport() {
                 </div>
             </div>
             <div className="flex gap-2 w-full md:w-auto">
-                <Button variant="outline" onClick={handleExport}>
+                <Button variant="outline" onClick={() => setIsExportDialogOpen(true)}>
                     <FileUp className="mr-2 h-4 w-4" /> {t('export')}
                 </Button>
                 <Select onValueChange={handleUserChange} value={selectedUser.id} disabled={viewableUsers.length <= 1}>
@@ -616,6 +655,110 @@ export function IndividualReport() {
             entry={deletingEntry}
         />
       )}
+      
+      <ExportIndividualReportDialog
+        isOpen={isExportDialogOpen}
+        onOpenChange={setIsExportDialogOpen}
+        onExport={handleExport}
+        availableYears={availableYears}
+        selectedUser={selectedUser}
+      />
     </div>
   );
+}
+
+interface ExportIndividualReportDialogProps {
+    isOpen: boolean;
+    onOpenChange: (isOpen: boolean) => void;
+    onExport: (start: Date, end: Date) => void;
+    availableYears: number[];
+    selectedUser: User;
+}
+
+function ExportIndividualReportDialog({ isOpen, onOpenChange, onExport, availableYears, selectedUser }: ExportIndividualReportDialogProps) {
+    const { t } = useLanguage();
+    const [mode, setMode] = React.useState<'monthly' | 'custom'>('monthly');
+    const [selectedMonth, setSelectedMonth] = React.useState(new Date().getMonth());
+    const [selectedYear, setSelectedYear] = React.useState(new Date().getFullYear());
+    const [fromDate, setFromDate] = React.useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+    const [toDate, setToDate] = React.useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
+
+    const handleExportClick = () => {
+        let start: Date;
+        let end: Date;
+
+        if (mode === 'monthly') {
+            start = startOfMonth(new Date(selectedYear, selectedMonth));
+            end = endOfMonth(new Date(selectedYear, selectedMonth));
+        } else {
+            start = startOfDay(parseISO(fromDate));
+            end = endOfDay(parseISO(toDate));
+        }
+
+        onExport(start, end);
+        onOpenChange(false);
+    }
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Export Individual Report</DialogTitle>
+                    <DialogDescription>
+                        Export a detailed report for {selectedUser.name}.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-6 py-4">
+                    <RadioGroup value={mode} onValueChange={(v) => setMode(v as any)} className="flex items-center gap-4">
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="monthly" id="m-monthly" />
+                            <Label htmlFor="m-monthly">Monthly</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="custom" id="m-custom" />
+                            <Label htmlFor="m-custom">Custom</Label>
+                        </div>
+                    </RadioGroup>
+
+                    {mode === 'monthly' ? (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Month</Label>
+                                <Select value={String(selectedMonth)} onValueChange={v => setSelectedMonth(Number(v))}>
+                                    <SelectTrigger><SelectValue/></SelectTrigger>
+                                    <SelectContent>
+                                        {months.map(m => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Year</Label>
+                                <Select value={String(selectedYear)} onValueChange={v => setSelectedYear(Number(v))}>
+                                    <SelectTrigger><SelectValue/></SelectTrigger>
+                                    <SelectContent>
+                                        {availableYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>From Date</Label>
+                                <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>To Date</Label>
+                                <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button onClick={handleExportClick}>Export Report</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
 }
