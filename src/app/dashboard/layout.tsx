@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import Link from "next/link";
@@ -69,7 +68,7 @@ import { MembersProvider, useMembers } from "./contexts/MembersContext";
 import { AccessControlProvider } from "./contexts/AccessControlContext";
 import { ProjectsProvider } from "./contexts/ProjectsContext";
 import { TasksProvider } from "./contexts/TasksContext";
-import { HolidaysProvider } from "./contexts/HolidaysContext";
+import { HolidaysProvider, useHolidays } from "./contexts/HolidaysContext";
 import { TeamsProvider } from "./contexts/TeamsContext";
 import { PushMessagesProvider, usePushMessages } from "./contexts/PushMessagesContext";
 import { SystemLogProvider } from "./contexts/SystemLogContext";
@@ -123,6 +122,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage();
   const { pushMessages, userMessageStates } = usePushMessages();
   const { notifications } = useNotifications();
+  const { holidayRequests } = useHolidays();
 
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [isLogTimeDialogOpen, setIsLogTimeDialogOpen] = React.useState(false);
@@ -154,8 +154,19 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   const unreadRequestCount = React.useMemo(() => {
     if (!currentUser) return 0;
-    return notifications.filter(n => n.recipientIds.includes(currentUser.id) && !n.readBy.includes(currentUser.id)).length;
-  }, [notifications, currentUser]);
+    return notifications.filter(n => {
+        const isRecipient = n.recipientIds.includes(currentUser.id);
+        const isUnread = !n.readBy.includes(currentUser.id);
+        if (!isRecipient || !isUnread) return false;
+        
+        // For holiday requests, only count if the request is still pending
+        if (n.type === 'holidayRequest') {
+            const request = holidayRequests.find(r => r.id === n.referenceId);
+            return request ? request.status === 'Pending' : false;
+        }
+        return true;
+    }).length;
+  }, [notifications, currentUser, holidayRequests]);
 
   const totalUnreadCount = activeUnreadPushCount + unreadRequestCount;
 
