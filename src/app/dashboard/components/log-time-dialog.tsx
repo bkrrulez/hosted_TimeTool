@@ -61,7 +61,7 @@ export function LogTimeDialog({ isOpen, onOpenChange, onSave, entryToEdit, userI
   const form = useForm<LogTimeFormValues>({
     resolver: zodResolver(logTimeSchema),
     defaultValues: {
-      userId: currentUser.id,
+      userId: currentUser?.id,
       date: new Date(),
       startTime: '',
       endTime: '',
@@ -127,7 +127,7 @@ export function LogTimeDialog({ isOpen, onOpenChange, onSave, entryToEdit, userI
     } else {
       setIsFormDisabled(false);
       form.reset({
-        userId: currentUser.id,
+        userId: currentUser?.id,
         date: new Date(),
         startTime: '',
         endTime: '',
@@ -138,7 +138,7 @@ export function LogTimeDialog({ isOpen, onOpenChange, onSave, entryToEdit, userI
       });
        setInputValue(format(new Date(), 'dd/MM/yyyy'));
     }
-  }, [entryToEdit, isOpen, form, isEditMode, currentUser.id]);
+  }, [entryToEdit, isOpen, form, isEditMode, currentUser?.id]);
 
   useEffect(() => {
     if (targetUser && !isEditMode) {
@@ -193,7 +193,7 @@ export function LogTimeDialog({ isOpen, onOpenChange, onSave, entryToEdit, userI
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 flex-1 overflow-hidden flex flex-col">
-            <div className="flex-1 overflow-y-auto pr-2">
+            <div className="flex-1 overflow-y-auto px-2">
               <fieldset disabled={isFormDisabled} className="space-y-4 pb-4">
                 {!isEditMode && (currentUser.role === 'Super Admin' || currentUser.role === 'Team Lead') && (
                   <FormField
