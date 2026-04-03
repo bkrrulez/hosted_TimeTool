@@ -62,12 +62,12 @@ export function MyDashboard() {
 
   const getProratedAllowance = React.useCallback((user: User) => {
     const today = new Date();
+    const currentYear = today.getFullYear();
     const yearStart = startOfYear(today);
     const yearEnd = endOfYear(today);
-    const daysInYear = differenceInCalendarDays(yearEnd, yearStart) + 1;
 
     let daysWithActiveContract = 0;
-    for (let d = new Date(yearStart); d <= yearEnd; d = addDays(d, 1)) {
+    for (let d = yearStart; d <= yearEnd; d = addDays(d, 1)) {
         const isCovered = user.contracts.some(c => {
             const contractStart = parseISO(c.startDate);
             const contractEnd = c.endDate ? parseISO(c.endDate) : new Date('9999-12-31');
@@ -76,6 +76,7 @@ export function MyDashboard() {
         if (isCovered) daysWithActiveContract++;
     }
 
+    const daysInYear = differenceInCalendarDays(yearEnd, yearStart) + 1;
     return (annualLeaveAllowance / daysInYear) * daysWithActiveContract;
   }, [annualLeaveAllowance]);
 
@@ -193,7 +194,7 @@ export function MyDashboard() {
     return publicHolidays
       .map(h => ({...h, dateObj: parseISO(h.date)}))
       .filter(h => h.dateObj >= today)
-      .sort((a,b) => h.dateObj.getTime() - b.dateObj.getTime())
+      .sort((a,b) => a.dateObj.getTime() - b.dateObj.getTime())
       .slice(0,3);
   }, [publicHolidays]);
 
