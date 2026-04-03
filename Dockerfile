@@ -1,7 +1,7 @@
 # Dockerfile for Next.js Application
 
 # 1. Base Image: Use the official Node.js 20 image.
-FROM node:20-slim AS base
+FROM gitlab.tuwien.ac.at/e210-02/dependency_proxy/containers/node:20-slim AS base
 
 # 2. Set working directory
 WORKDIR /app
@@ -19,7 +19,7 @@ COPY . .
 RUN npm run build
 
 # 6. Production Image: Create a smaller, more secure image for production.
-FROM node:20-slim AS production
+FROM gitlab.tuwien.ac.at/e210-02/dependency_proxy/containers/node:20-slim AS production
 
 WORKDIR /app
 
