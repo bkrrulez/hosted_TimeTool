@@ -300,7 +300,7 @@ export function MyDashboard() {
                       <div>
                         <div className="text-2xl font-bold">{t('daysCount', { count: takenVacationDays })} of Vacation</div>
                         <p className="text-xs text-muted-foreground">
-                        {t('daysRemaining', { count: remainingDays.toFixed(2) })} remaining
+                        {t('daysRemaining', { count: remainingDays.toFixed(2) })}
                         </p>
                       </div>
                       <div className="pt-2 border-t">
