@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -68,8 +67,8 @@ function TeamRequestsTab() {
   };
 
   const getDurationInDays = (startDate: string, endDate: string) => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const start = parseISO(startDate);
+    const end = parseISO(endDate);
     return differenceInCalendarDays(end, start) + 1;
   };
   
@@ -128,7 +127,7 @@ function TeamRequestsTab() {
                                 )}
                             </TableCell>
                             <TableCell className="font-medium">
-                                {format(new Date(req.startDate), 'PP')} - {format(new Date(req.endDate), 'PP')}
+                                {format(parseISO(req.startDate), 'PP')} - {format(parseISO(req.endDate), 'PP')}
                             </TableCell>
                             <TableCell>
                                 <Badge variant="outline">{req.type}</Badge>
@@ -185,7 +184,7 @@ function TeamRequestsTab() {
                                     )}
                                 </TableCell>
                                 <TableCell className="font-medium">
-                                    {format(new Date(req.startDate), 'PP')} - {format(new Date(req.endDate), 'PP')}
+                                    {format(parseISO(req.startDate), 'PP')} - {format(parseISO(req.endDate), 'PP')}
                                 </TableCell>
                                 <TableCell>
                                     <Badge variant="outline">{req.type}</Badge>
@@ -233,28 +232,39 @@ export default function HolidaysPage() {
     const user = teamMembers.find(u => u.id === userId);
     if (!user) return 0;
 
-    for (let dt = new Date(startDate); dt <= new Date(endDate); dt = addDays(dt, 1)) {
-        const dayOfWeek = dt.getDay();
-        if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+    // Use a copy to avoid mutating inputs
+    const current = new Date(startDate);
+    const end = new Date(endDate);
+    
+    // Normalize to midnight for comparison
+    current.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
 
-        const isPublic = publicHolidays.some(h => isSameDay(new Date(h.date), dt));
-        if (isPublic) continue;
+    while (current <= end) {
+        const dayOfWeek = current.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            const dateStr = format(current, 'yyyy-MM-dd');
+            
+            const isPublic = publicHolidays.some(h => format(parseISO(h.date), 'yyyy-MM-dd') === dateStr);
+            const isCustom = customHolidays.some(h => {
+                const applies = (h.appliesTo === 'all-members') ||
+                                (h.appliesTo === 'all-teams' && !!user.teamId) ||
+                                (h.appliesTo === user.teamId);
+                return applies && format(parseISO(h.date), 'yyyy-MM-dd') === dateStr;
+            });
 
-        const isCustom = customHolidays.some(h => {
-            const applies = (h.appliesTo === 'all-members') ||
-                            (h.appliesTo === 'all-teams' && !!user.teamId) ||
-                            (h.appliesTo === user.teamId);
-            return applies && isSameDay(new Date(h.date), dt);
-        });
-        if (isCustom) continue;
-        
-        workdays++;
+            if (!isPublic && !isCustom) {
+                workdays++;
+            }
+        }
+        current.setDate(current.getDate() + 1);
     }
     return workdays;
   }, [publicHolidays, customHolidays, teamMembers]);
 
   const getProratedAllowance = React.useCallback((user: User) => {
     const today = new Date();
+    const currentYear = today.getFullYear();
     const yearStart = startOfYear(today);
     const yearEnd = endOfYear(today);
     const daysInYear = differenceInCalendarDays(yearEnd, yearStart) + 1;
@@ -275,13 +285,17 @@ export default function HolidaysPage() {
   const userAllowance = getProratedAllowance(currentUser);
   const userHolidayRequests = holidayRequests.filter(req => req.userId === currentUser.id);
 
-  const takenVacationDays = userHolidayRequests
-    .filter(req => req.status === 'Approved' && req.type === 'Vacation')
-    .reduce((acc, req) => acc + calculateDurationInWorkdays(new Date(req.startDate), new Date(req.endDate), req.userId), 0);
+  const takenVacationDays = React.useMemo(() => {
+      return userHolidayRequests
+        .filter(req => req.status === 'Approved' && req.type === 'Vacation' && getYear(parseISO(req.startDate)) === getYear(new Date()))
+        .reduce((acc, req) => acc + calculateDurationInWorkdays(parseISO(req.startDate), parseISO(req.endDate), req.userId), 0);
+  }, [userHolidayRequests, calculateDurationInWorkdays]);
 
-  const takenSickDays = userHolidayRequests
-    .filter(req => req.status === 'Approved' && req.type === 'Sick Leave')
-    .reduce((acc, req) => acc + calculateDurationInWorkdays(new Date(req.startDate), new Date(req.endDate), req.userId), 0);
+  const takenSickDays = React.useMemo(() => {
+      return userHolidayRequests
+        .filter(req => req.status === 'Approved' && req.type === 'Sick Leave' && getYear(parseISO(req.startDate)) === getYear(new Date()))
+        .reduce((acc, req) => acc + calculateDurationInWorkdays(parseISO(req.startDate), parseISO(req.endDate), req.userId), 0);
+  }, [userHolidayRequests, calculateDurationInWorkdays]);
 
   const remainingDays = userAllowance - takenVacationDays;
 
@@ -292,7 +306,11 @@ export default function HolidaysPage() {
   
   const handleSaveRequest = (data: LeaveRequestFormValues) => {
     if (data.from && data.to) {
-        const requestedDuration = calculateDurationInWorkdays(data.from, data.to, currentUser.id);
+        // Standardize to local dates at midnight for workday calculation
+        const start = new Date(data.from.getFullYear(), data.from.getMonth(), data.from.getDate());
+        const end = new Date(data.to.getFullYear(), data.to.getMonth(), data.to.getDate());
+        
+        const requestedDuration = calculateDurationInWorkdays(start, end, currentUser.id);
         
         if (requestedDuration <= 0) {
             toast({
@@ -313,8 +331,8 @@ export default function HolidaysPage() {
         }
 
         addHolidayRequest({
-            startDate: data.from.toISOString(),
-            endDate: data.to.toISOString(),
+            startDate: format(data.from, 'yyyy-MM-dd'),
+            endDate: format(data.to, 'yyyy-MM-dd'),
             type: data.type,
         });
         setIsRequestDialogOpen(false);
@@ -409,13 +427,13 @@ export default function HolidaysPage() {
                                 {userHolidayRequests.map(req => (
                                     <TableRow key={req.id}>
                                     <TableCell className="font-medium">
-                                        {format(new Date(req.startDate), 'LLL dd, y')} - {format(new Date(req.endDate), 'LLL dd, y')}
+                                        {format(parseISO(req.startDate), 'PP')} - {format(parseISO(req.endDate), 'PP')}
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant="outline">{req.type}</Badge>
                                     </TableCell>
                                     <TableCell className="hidden sm:table-cell">
-                                        {getDurationText(calculateDurationInWorkdays(new Date(req.startDate), new Date(req.endDate), req.userId))}
+                                        {getDurationText(calculateDurationInWorkdays(parseISO(req.startDate), parseISO(req.endDate), req.userId))}
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant={getStatusVariant(req.status)} className={cn(getStatusVariant(req.status) === 'default' && 'bg-green-600')}>{req.status}</Badge>

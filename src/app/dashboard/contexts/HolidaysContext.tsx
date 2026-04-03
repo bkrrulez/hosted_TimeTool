@@ -1,11 +1,10 @@
-
 'use client';
 import * as React from 'react';
 import { type PublicHoliday, type CustomHoliday, type HolidayRequest } from "@/lib/types";
 import { useSystemLog } from './SystemLogContext';
 import { useMembers } from './MembersContext';
 import { useNotifications } from './NotificationsContext';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { useAuth } from './AuthContext';
 import { 
     getPublicHolidays,
@@ -98,11 +97,14 @@ export function HolidaysProvider({ children }: { children: React.ReactNode }) {
             setHolidayRequests(prev => [...prev, newRequest]);
             await logAction(`User '${currentUser.name}' submitted a ${request.type.toLowerCase()} request from ${request.startDate} to ${request.endDate}.`);
 
-            const user = teamMembers.find(u => u.id === currentUser.id);
             const recipients = new Set<string>();
-            if (user?.reportsTo) {
-                recipients.add(user.reportsTo);
+            
+            // Send notification to direct manager
+            if (currentUser.reportsTo) {
+                recipients.add(currentUser.reportsTo);
             }
+            
+            // Send notification to all other Super Admins
             teamMembers.forEach(member => {
                 if (member.role === 'Super Admin' && member.id !== currentUser.id) {
                     recipients.add(member.id);
@@ -113,7 +115,7 @@ export function HolidaysProvider({ children }: { children: React.ReactNode }) {
                 await addNotification({
                     recipientIds: Array.from(recipients),
                     title: `New ${request.type} Request`,
-                    body: `${currentUser.name} requested ${request.type.toLowerCase()} from ${format(new Date(request.startDate), 'PP')} to ${format(new Date(request.endDate), 'PP')}.`,
+                    body: `${currentUser.name} requested ${request.type.toLowerCase()} from ${format(parseISO(request.startDate), 'PP')} to ${format(parseISO(request.endDate), 'PP')}.`,
                     referenceId: newRequest.id,
                     type: 'holidayRequest'
                 });
