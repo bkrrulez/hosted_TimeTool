@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { type PushMessage } from '@/lib/mock-data';
+import { type PushMessage } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { usePushMessages } from '../contexts/PushMessagesContext';
 import { useNotifications } from '../contexts/NotificationsContext';
@@ -32,9 +32,10 @@ export function NotificationPopover({ onClose }: NotificationPopoverProps) {
   const { currentUser } = useAuth();
   // Push Messages (Broadcast)
   const { pushMessages, userMessageStates, markMessageAsRead } = usePushMessages();
-  const pushMessageUserReadIds = userMessageStates[currentUser.id]?.readMessageIds || [];
+  const pushMessageUserReadIds = userMessageStates[currentUser?.id || '']?.readMessageIds || [];
 
   const applicablePushMessages = React.useMemo(() => {
+    if (!currentUser) return [];
     return pushMessages.filter((msg) => {
       if (msg.receivers === 'all-members') return true;
       if (msg.receivers === 'all-teams' && currentUser.teamId) return true;
@@ -59,9 +60,12 @@ export function NotificationPopover({ onClose }: NotificationPopoverProps) {
   const { holidayRequests, approveRequest, rejectRequest } = useHolidays();
 
   const userAppNotifications = React.useMemo(() => {
+      if (!currentUser) return [];
       return notifications
         .filter(n => {
-            if (!n.recipientIds.includes(currentUser.id) || n.type !== 'holidayRequest') {
+            // Ensure recipientIds is an array and contains the current user
+            const recipientIds = Array.isArray(n.recipientIds) ? n.recipientIds : [];
+            if (!recipientIds.includes(currentUser.id) || n.type !== 'holidayRequest') {
                 return false;
             }
             // Check if the associated holiday request is still pending.
@@ -73,20 +77,25 @@ export function NotificationPopover({ onClose }: NotificationPopoverProps) {
 
   // Combined notifications
   const allDisplayableItems = React.useMemo(() => {
+    if (!currentUser) return [];
     const pushItems = displayablePushMessages.map(msg => ({
         id: msg.id,
-        type: 'pushMessage',
+        type: 'pushMessage' as const,
         timestamp: msg.startDate,
         isRead: pushMessageUserReadIds.includes(msg.id),
-        ...msg,
+        context: msg.context,
+        messageBody: msg.messageBody,
+        startDate: msg.startDate,
     }));
     
     const appItems = userAppNotifications.map(notif => ({
         id: notif.id,
         type: notif.type,
         timestamp: notif.timestamp,
-        isRead: notif.readBy.includes(currentUser.id),
-        ...notif
+        isRead: (Array.isArray(notif.readBy) ? notif.readBy : []).includes(currentUser.id),
+        title: notif.title,
+        body: notif.body,
+        referenceId: notif.referenceId,
     }));
 
     return [...pushItems, ...appItems].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -94,11 +103,13 @@ export function NotificationPopover({ onClose }: NotificationPopoverProps) {
 
 
   const handleDismissPushMessage = (messageId: string) => {
+      if (!currentUser) return;
       markMessageAsRead(currentUser.id, messageId);
       onClose();
   };
   
   const handleApprove = (notificationId: string, requestId: string) => {
+      if (!currentUser) return;
       approveRequest(requestId);
       markAsRead(notificationId, currentUser.id);
       toast({ title: "Request Approved", description: "The holiday request has been approved."});
@@ -106,6 +117,7 @@ export function NotificationPopover({ onClose }: NotificationPopoverProps) {
   }
   
   const handleReject = (notificationId: string, requestId: string) => {
+      if (!currentUser) return;
       rejectRequest(requestId);
       markAsRead(notificationId, currentUser.id);
       toast({ title: "Request Rejected", description: "The holiday request has been rejected.", variant: 'destructive'});
@@ -145,10 +157,10 @@ export function NotificationPopover({ onClose }: NotificationPopoverProps) {
                         </p>
                       {!item.isRead && (
                         <div className="flex gap-2 pt-2">
-                            <Button size="sm" onClick={() => handleApprove(item.id, item.referenceId)}>
+                            <Button size="sm" onClick={() => handleApprove(item.id, item.referenceId || '')}>
                                 <Check className="mr-2 h-4 w-4"/>Approve
                             </Button>
-                            <Button size="sm" variant="destructive" onClick={() => handleReject(item.id, item.referenceId)}>
+                            <Button size="sm" variant="destructive" onClick={() => handleReject(item.id, item.referenceId || '')}>
                                 <X className="mr-2 h-4 w-4"/>Reject
                             </Button>
                         </div>

@@ -1255,11 +1255,21 @@ export async function getNotifications(): Promise<AppNotification[]> {
         GROUP BY n.id
         ORDER BY n.timestamp DESC
     `);
+
+    // Helper to ensure array columns are JavaScript arrays (sometimes returned as strings like "{...}")
+    const parseArray = (arr: any) => {
+        if (Array.isArray(arr)) return arr;
+        if (typeof arr === 'string') {
+            return arr.replace(/[{}]/g, '').split(',').filter(Boolean);
+        }
+        return [];
+    };
+
     return result.rows.map(row => ({
         ...row,
         timestamp: new Date(row.timestamp).toISOString(),
-        readBy: row.read_by,
-        recipientIds: row.recipient_ids
+        readBy: parseArray(row.read_by),
+        recipientIds: parseArray(row.recipient_ids)
     }));
 }
 

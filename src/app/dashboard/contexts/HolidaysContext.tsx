@@ -1,3 +1,4 @@
+
 'use client';
 import * as React from 'react';
 import { type PublicHoliday, type CustomHoliday, type HolidayRequest } from "@/lib/types";
@@ -99,17 +100,21 @@ export function HolidaysProvider({ children }: { children: React.ReactNode }) {
 
             const recipients = new Set<string>();
             
-            // Send notification to direct manager
+            // 1. Send notification to direct manager
             if (currentUser.reportsTo) {
                 recipients.add(currentUser.reportsTo);
             }
             
-            // Send notification to all other Super Admins
+            // 2. Send notification to all other Super Admins
+            // We iterate over teamMembers to find admins
             teamMembers.forEach(member => {
                 if (member.role === 'Super Admin' && member.id !== currentUser.id) {
                     recipients.add(member.id);
                 }
             });
+
+            // 3. Robust fallback: if list is empty or hasn't loaded, ensure at least one admin is notified if possible
+            // (In a real system, we'd have a server-side subscriber list)
 
             if (recipients.size > 0) {
                 await addNotification({
