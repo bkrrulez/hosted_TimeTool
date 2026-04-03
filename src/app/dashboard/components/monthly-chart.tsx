@@ -8,7 +8,7 @@ import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import { useTimeTracking } from "../contexts/TimeTrackingContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useHolidays } from "../contexts/HolidaysContext";
-import { getDate, getDaysInMonth, isSameDay, isSameMonth, parseISO, isWithinInterval } from "date-fns";
+import { getDate, getDaysInMonth, isSameDay, isSameMonth, parseISO, isWithinInterval, addDays } from "date-fns";
 import type { TimeEntry } from "@/lib/types";
 import { DayDetailsDialog } from "../reports/components/day-details-dialog";
 import { LogTimeDialog, type LogTimeFormValues } from "./log-time-dialog";
