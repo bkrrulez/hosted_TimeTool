@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -263,7 +264,7 @@ export function TeamRoster() {
                 absence.type === 'General Absence' &&
                 isDateInAbsence(format(date, 'yyyy-MM-dd'), absence)
             ),
-            sickLeave: (date: Date) => absences.some(absence => 
+            sickLeaveAbsence: (date: Date) => absences.some(absence => 
                 absence.userId === userId &&
                 absence.type === 'Sick Leave' &&
                 isDateInAbsence(format(date, 'yyyy-MM-dd'), absence)
@@ -281,9 +282,16 @@ export function TeamRoster() {
             publicHoliday: (date: Date) => publicHolidays.some(ph => 
                 ph.date.split('T')[0] === format(date, 'yyyy-MM-dd')
             ),
-            approvedHoliday: (date: Date) => holidayRequests.some(r =>
+            approvedVacation: (date: Date) => holidayRequests.some(r =>
                 r.userId === userId &&
                 r.status === 'Approved' &&
+                r.type === 'Vacation' &&
+                isWithinInterval(date, { start: parseISO(r.startDate), end: parseISO(r.endDate) })
+            ),
+            approvedSickLeave: (date: Date) => holidayRequests.some(r =>
+                r.userId === userId &&
+                r.status === 'Approved' &&
+                r.type === 'Sick Leave' &&
                 isWithinInterval(date, { start: parseISO(r.startDate), end: parseISO(r.endDate) })
             ),
         }), [userId, timeEntries, absences, publicHolidays, holidayRequests]);
@@ -302,13 +310,14 @@ export function TeamRoster() {
                 tooltip = getDay(props.date) === 0 ? 'Sunday' : 'Saturday';
             }
     
-            if (modifiers.approvedHoliday(props.date)) {
+            if (modifiers.approvedVacation(props.date)) {
                 className = cn(className, "bg-yellow-400 dark:bg-yellow-600");
                 tooltip = 'Vacation';
                 footerText = 'Vacation';
-            } else if (modifiers.sickLeave(props.date)) {
+            } else if (modifiers.approvedSickLeave(props.date) || modifiers.sickLeaveAbsence(props.date)) {
                 className = cn(className, "bg-red-300 dark:bg-red-800");
                 tooltip = 'Sick Leave';
+                footerText = 'Sick Leave';
             } else if (modifiers.generalAbsence(props.date)) {
                 className = cn(className, "bg-yellow-200 dark:bg-yellow-800");
                 tooltip = 'General Absence';

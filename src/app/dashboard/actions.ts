@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { db } from '@/lib/db';
@@ -111,6 +110,7 @@ const mapDbHolidayRequestToHolidayRequest = (row: any): HolidayRequest => ({
   startDate: format(new Date(row.start_date), 'yyyy-MM-dd'),
   endDate: format(new Date(row.end_date), 'yyyy-MM-dd'),
   status: row.status,
+  type: row.type || 'Vacation',
   actionByUserId: row.action_by_user_id,
   actionTimestamp: row.action_timestamp ? new Date(row.action_timestamp).toISOString() : null,
 });
@@ -1026,8 +1026,8 @@ export async function setAnnualLeaveAllowance(allowance: number): Promise<void> 
 export async function addHolidayRequest(request: Omit<HolidayRequest, 'id'>): Promise<HolidayRequest | null> {
     const id = `hr-${Date.now()}`;
     const result = await db.query(
-        `INSERT INTO holiday_requests (id, user_id, start_date, end_date, status) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [id, request.userId, request.startDate, request.endDate, request.status]
+        `INSERT INTO holiday_requests (id, user_id, start_date, end_date, status, type) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [id, request.userId, request.startDate, request.endDate, request.status, request.type]
     );
     revalidatePath('/dashboard/holidays');
     return mapDbHolidayRequestToHolidayRequest(result.rows[0]);
@@ -1468,20 +1468,3 @@ export async function setSystemSetting(key: string, value: string): Promise<void
         console.error(`Failed to set setting for key '${key}':`, error);
     }
 }
-
-    
-
-      
-
-    
-
-    
-
-
-
-
-
-
-
-
-

@@ -1,3 +1,4 @@
+
 'use client';
 import * as React from 'react';
 import { type PublicHoliday, type CustomHoliday, type HolidayRequest } from "@/lib/types";
@@ -95,7 +96,7 @@ export function HolidaysProvider({ children }: { children: React.ReactNode }) {
         
         if (newRequest) {
             setHolidayRequests(prev => [...prev, newRequest]);
-            await logAction(`User '${currentUser.name}' submitted a holiday request from ${request.startDate} to ${request.endDate}.`);
+            await logAction(`User '${currentUser.name}' submitted a ${request.type.toLowerCase()} request from ${request.startDate} to ${request.endDate}.`);
 
             const user = teamMembers.find(u => u.id === currentUser.id);
             const recipients = new Set<string>();
@@ -111,8 +112,8 @@ export function HolidaysProvider({ children }: { children: React.ReactNode }) {
             if (recipients.size > 0) {
                 await addNotification({
                     recipientIds: Array.from(recipients),
-                    title: 'New Holiday Request',
-                    body: `${currentUser.name} requested leave from ${format(new Date(request.startDate), 'PP')} to ${format(new Date(request.endDate), 'PP')}.`,
+                    title: `New ${request.type} Request`,
+                    body: `${currentUser.name} requested ${request.type.toLowerCase()} from ${format(new Date(request.startDate), 'PP')} to ${format(new Date(request.endDate), 'PP')}.`,
                     referenceId: newRequest.id,
                     type: 'holidayRequest'
                 });
@@ -128,7 +129,7 @@ export function HolidaysProvider({ children }: { children: React.ReactNode }) {
         if (updatedRequest) {
             setHolidayRequests(prev => prev.map(req => req.id === requestId ? updatedRequest : req));
             const user = teamMembers.find(u => u.id === request.userId);
-            await logAction(`Holiday request for '${user?.name || 'Unknown'}' approved by '${currentUser.name}'.`);
+            await logAction(`${request.type} request for '${user?.name || 'Unknown'}' approved by '${currentUser.name}'.`);
         }
     };
     
@@ -140,7 +141,7 @@ export function HolidaysProvider({ children }: { children: React.ReactNode }) {
         if (updatedRequest) {
             setHolidayRequests(prev => prev.map(req => req.id === requestId ? updatedRequest : req));
             const user = teamMembers.find(u => u.id === request.userId);
-            await logAction(`Holiday request for '${user?.name || 'Unknown'}' rejected by '${currentUser.name}'.`);
+            await logAction(`${request.type} request for '${user?.name || 'Unknown'}' rejected by '${currentUser.name}'.`);
         }
     };
 
@@ -150,7 +151,7 @@ export function HolidaysProvider({ children }: { children: React.ReactNode }) {
         
         await deleteHolidayRequest(requestId);
         setHolidayRequests(prev => prev.filter(req => req.id !== requestId));
-        await logAction(`User '${currentUser.name}' withdrew a holiday request.`);
+        await logAction(`User '${currentUser.name}' withdrew a ${request.type.toLowerCase()} request.`);
     };
 
     const addPublicHoliday = async (holidayData: Omit<PublicHoliday, 'id'>) => {

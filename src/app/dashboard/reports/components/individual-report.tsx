@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -30,7 +31,7 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import type { User, TimeEntry } from '@/lib/types';
+import type { User, TimeEntry, HolidayRequest } from '@/lib/types';
 import { addDays, getDay, isSameMonth, startOfMonth, isWithinInterval, getYear, parseISO, isSameDay, min as minDate, max as maxDate, getMonth, endOfYear, startOfYear, endOfMonth, format, startOfDay, endOfDay } from 'date-fns';
 import type { DayContentProps } from 'react-day-picker';
 import { DayDetailsDialog } from './day-details-dialog';
@@ -57,7 +58,7 @@ interface ReportCalendarContextValue {
     dailyEntries: Record<string, TimeEntry[]>;
     dailyExpected: Record<string, number>;
     dailyHolidayNames: Record<string, string>;
-    personalLeaveDays: Date[];
+    personalLeaveDays: { date: Date; type: "Vacation" | "Sick Leave" }[];
     publicHolidayDays: Date[];
     customHolidayDays: Date[];
   };
@@ -87,7 +88,7 @@ const DayContent: React.FC<DayContentProps> = (props) => {
   const hasManualEntries = (monthlyData.dailyEntries[dayOfMonth] || []).length > 0;
   
   const isWeekend = getDay(date) === 0 || getDay(date) === 6;
-  const isLeaveDay = monthlyData.personalLeaveDays.some(d => isSameDay(d, date));
+  const personalLeave = monthlyData.personalLeaveDays.find(d => isSameDay(d.date, date));
 
   const wrapperProps = {
     className: "relative w-full h-full flex flex-col items-center justify-between text-center p-1",
@@ -109,8 +110,10 @@ const DayContent: React.FC<DayContentProps> = (props) => {
                 <span className="text-[10px] font-semibold text-green-600 truncate px-1">
                     {holidayName}
                 </span>
-            ) : isLeaveDay ? (
-                <span className="text-[10px] font-semibold text-yellow-700 mt-auto">Vacation</span>
+            ) : personalLeave ? (
+                <span className={cn("text-[10px] font-semibold mt-auto", personalLeave.type === 'Sick Leave' ? 'text-orange-600' : 'text-yellow-700')}>
+                    {personalLeave.type}
+                </span>
             ) : <span className="h-[15px]" />
         )}
         {isWeekend && <span className="h-[15px]" />}
@@ -251,8 +254,8 @@ export function IndividualReport() {
             continue;
         }
 
-        const isLeaveDay = holidayRequests.some(req => req.userId === selectedUser.id && req.status === 'Approved' && isWithinInterval(d, { start: parseISO(req.startDate), end: parseISO(req.endDate) }));
-        if (isLeaveDay) continue;
+        const isVacationDay = holidayRequests.some(req => req.userId === selectedUser.id && req.status === 'Approved' && req.type === 'Vacation' && isWithinInterval(d, { start: parseISO(req.startDate), end: parseISO(req.endDate) }));
+        if (isVacationDay) continue;
 
         const activeContractsOnDay = selectedUser.contracts.filter(c => {
             const contractStart = parseISO(c.startDate);
@@ -293,10 +296,10 @@ export function IndividualReport() {
     ).flatMap(req => {
         const start = parseISO(req.startDate);
         const end = parseISO(req.endDate);
-        const dates: Date[] = [];
+        const dates: { date: Date; type: "Vacation" | "Sick Leave" }[] = [];
         for (let dt = start; dt <= end; dt = addDays(dt, 1)) {
             if (isSameMonth(dt, selectedDate)) {
-                dates.push(new Date(dt));
+                dates.push({ date: new Date(dt), type: req.type });
             }
         }
         return dates;
@@ -373,7 +376,7 @@ export function IndividualReport() {
             for (let d = new Date(seg.start); d <= seg.end; d = addDays(d, 1)) {
                 if (getDay(d) === 0 || getDay(d) === 6) continue;
                 if (holidays.some(h => isSameDay(parseISO(h.date), d))) continue;
-                if (holidayRequests.some(req => req.userId === selectedUser.id && req.status === 'Approved' && isWithinInterval(d, { start: parseISO(req.startDate), end: parseISO(req.endDate) }))) continue;
+                if (holidayRequests.some(req => req.userId === selectedUser.id && req.status === 'Approved' && req.type === 'Vacation' && isWithinInterval(d, { start: parseISO(req.startDate), end: parseISO(req.endDate) }))) continue;
 
                 const activeContracts = selectedUser.contracts.filter(c => {
                     const cStart = parseISO(c.startDate);
@@ -598,7 +601,7 @@ export function IndividualReport() {
                       sunday: (date) => getDay(date) === 0,
                       holiday: monthlyData.publicHolidayDays,
                       customHoliday: monthlyData.customHolidayDays,
-                      personalLeave: monthlyData.personalLeaveDays,
+                      personalLeave: monthlyData.personalLeaveDays.map(d => d.date),
                       logged: Object.keys(monthlyData.dailyTotals).filter(d => monthlyData.dailyTotals[parseInt(d)] > 0).map(day => {
                           return new Date(selectedDate.getFullYear(), selectedDate.getMonth(), parseInt(day))
                       })
@@ -616,7 +619,7 @@ export function IndividualReport() {
                   }}
                   className="p-0"
                   classNames={{
-                      row: "flex w-full mt-2",
+                      row: "flex w-full mt-0",
                       cell: "flex-1 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
                       head_row: "flex",
                       head_cell: "text-muted-foreground rounded-md w-full font-normal text-[0.8rem]",

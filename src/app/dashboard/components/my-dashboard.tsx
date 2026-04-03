@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -82,7 +83,7 @@ export function MyDashboard() {
 
   const userAllowance = getProratedAllowance(currentUser);
 
-  const { totalHours, expectedHoursSoFar, overtime, takenDays, remainingDays } = React.useMemo(() => {
+  const { totalHours, expectedHoursSoFar, overtime, takenVacationDays, takenSickDays, remainingDays } = React.useMemo(() => {
     const today = new Date();
     const currentYear = today.getFullYear();
     const periodStart = startOfMonth(today);
@@ -179,13 +180,17 @@ export function MyDashboard() {
     const overtime = totalHours - expectedHoursSoFar;
 
     // Calculate Holiday Days Taken
-    const takenDays = holidayRequests
-      .filter(req => req.userId === currentUser.id && req.status === 'Approved' && getYear(parseISO(req.startDate)) === currentYear)
+    const takenVacationDays = holidayRequests
+      .filter(req => req.userId === currentUser.id && req.status === 'Approved' && req.type === 'Vacation' && getYear(parseISO(req.startDate)) === currentYear)
       .reduce((acc, req) => acc + calculateDurationInWorkdays(new Date(req.startDate), new Date(req.endDate), req.userId), 0);
 
-    const remainingDays = userAllowance - takenDays;
+    const takenSickDays = holidayRequests
+      .filter(req => req.userId === currentUser.id && req.status === 'Approved' && req.type === 'Sick Leave' && getYear(parseISO(req.startDate)) === currentYear)
+      .reduce((acc, req) => acc + calculateDurationInWorkdays(new Date(req.startDate), new Date(req.endDate), req.userId), 0);
 
-    return { totalHours, expectedHoursSoFar, overtime, takenDays, remainingDays };
+    const remainingDays = userAllowance - takenVacationDays;
+
+    return { totalHours, expectedHoursSoFar, overtime, takenVacationDays, takenSickDays, remainingDays };
   }, [timeEntries, publicHolidays, customHolidays, holidayRequests, userAllowance, currentUser, annualLeaveAllowance, calculateDurationInWorkdays]);
 
   const upcomingHolidays = React.useMemo(() => {
@@ -291,11 +296,16 @@ export function MyDashboard() {
                       <CardTitle className="text-sm font-medium">Holidays Taken in {currentYear}</CardTitle>
                       <Users className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
-                  <CardContent>
-                      <div className="text-2xl font-bold">{t('daysCount', { count: takenDays })}</div>
-                      <p className="text-xs text-muted-foreground">
-                      {t('daysRemaining', { count: remainingDays.toFixed(2) })}
-                      </p>
+                  <CardContent className="space-y-2">
+                      <div>
+                        <div className="text-2xl font-bold">{t('daysCount', { count: takenVacationDays })} of Vacation</div>
+                        <p className="text-xs text-muted-foreground">
+                        {t('daysRemaining', { count: remainingDays.toFixed(2) })} remaining
+                        </p>
+                      </div>
+                      <div className="pt-2 border-t">
+                        <div className="text-lg font-bold">{t('daysCount', { count: takenSickDays })} of Sick Leave</div>
+                      </div>
                   </CardContent>
               </Card>
           ) : null}

@@ -5,45 +5,48 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { format, addDays } from 'date-fns';
+import { format, addDays, isBefore, startOfDay, parse } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
-import type { DateRange } from 'react-day-picker';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
 
-const holidayRequestSchema = z.object({
-  date: z.object({
-    from: z.date({ required_error: 'A start date is required.' }),
-    to: z.date({ required_error: 'An end date is required.' }),
-  }),
+const leaveRequestSchema = z.object({
+  from: z.date({ required_error: 'Start date is required.' }),
+  to: z.date({ required_error: 'End date is required.' }),
+  type: z.enum(['Vacation', 'Sick Leave']),
+}).refine(data => !isBefore(data.to, data.from), {
+    message: "End date cannot be before start date.",
+    path: ["to"],
 });
 
-export type HolidayRequestFormValues = z.infer<typeof holidayRequestSchema>;
+export type LeaveRequestFormValues = z.infer<typeof leaveRequestSchema>;
 
-interface RequestHolidayDialogProps {
+interface RequestLeavesDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSave: (data: HolidayRequestFormValues) => void;
+  onSave: (data: LeaveRequestFormValues) => void;
 }
 
-export function RequestHolidayDialog({ isOpen, onOpenChange, onSave }: RequestHolidayDialogProps) {
-  const { toast } = useToast();
-  const form = useForm<HolidayRequestFormValues>({
-    resolver: zodResolver(holidayRequestSchema),
+export function RequestLeavesDialog({ isOpen, onOpenChange, onSave }: RequestLeavesDialogProps) {
+  const form = useForm<LeaveRequestFormValues>({
+    resolver: zodResolver(leaveRequestSchema),
     defaultValues: {
-      date: { from: new Date(), to: addDays(new Date(), 4) }
+      from: new Date(),
+      to: new Date(),
+      type: 'Vacation',
     },
   });
 
-  const [isDatePickerOpen, setIsDatePickerOpen] = React.useState(false);
-  const [tempDateRange, setTempDateRange] = React.useState<DateRange | undefined>(form.getValues('date'));
+  const [isFromPickerOpen, setIsFromPickerOpen] = React.useState(false);
+  const [isToPickerOpen, setIsToPickerOpen] = React.useState(false);
 
-  function onSubmit(data: HolidayRequestFormValues) {
+  function onSubmit(data: LeaveRequestFormValues) {
     onSave(data);
     form.reset();
   }
@@ -52,69 +55,107 @@ export function RequestHolidayDialog({ isOpen, onOpenChange, onSave }: RequestHo
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Request Holiday</DialogTitle>
+          <DialogTitle>Request Leaves</DialogTitle>
           <DialogDescription>
-            Select the start and end date for your holiday request.
+            Submit a new leave request. Vacation days are deducted from your annual allowance.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+                <FormField
+                    control={form.control}
+                    name="from"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                            <FormLabel>From Date</FormLabel>
+                            <Popover open={isFromPickerOpen} onOpenChange={setIsFromPickerOpen}>
+                                <PopoverTrigger asChild>
+                                    <FormControl>
+                                        <Button
+                                            variant={"outline"}
+                                            className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                                        >
+                                            {field.value ? format(field.value, "PP") : <span>Pick date</span>}
+                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        mode="single"
+                                        selected={field.value}
+                                        onSelect={(date) => {
+                                            field.onChange(date);
+                                            setIsFromPickerOpen(false);
+                                        }}
+                                        initialFocus
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="to"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                            <FormLabel>To Date</FormLabel>
+                            <Popover open={isToPickerOpen} onOpenChange={setIsToPickerOpen}>
+                                <PopoverTrigger asChild>
+                                    <FormControl>
+                                        <Button
+                                            variant={"outline"}
+                                            className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                                        >
+                                            {field.value ? format(field.value, "PP") : <span>Pick date</span>}
+                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        mode="single"
+                                        selected={field.value}
+                                        onSelect={(date) => {
+                                            field.onChange(date);
+                                            setIsToPickerOpen(false);
+                                        }}
+                                        disabled={(date) => isBefore(date, startOfDay(form.getValues('from')))}
+                                        initialFocus
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            </div>
+
             <FormField
               control={form.control}
-              name="date"
+              name="type"
               render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Holiday Dates</FormLabel>
-                  <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn("w-full justify-start text-left font-normal", !field.value?.from && "text-muted-foreground")}
-                          onClick={() => {
-                            setTempDateRange(field.value);
-                            setIsDatePickerOpen(true);
-                          }}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {field.value?.from ? (
-                            field.value.to ? (
-                              <>
-                                {format(field.value.from, "LLL dd, y")} - {format(field.value.to, "LLL dd, y")}
-                              </>
-                            ) : (
-                              format(field.value.from, "LLL dd, y")
-                            )
-                          ) : (
-                            <span>Pick a date range</span>
-                          )}
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        initialFocus
-                        mode="range"
-                        defaultMonth={tempDateRange?.from}
-                        selected={tempDateRange}
-                        onSelect={setTempDateRange}
-                        numberOfMonths={2}
-                        fromDate={new Date()}
-                      />
-                       <div className="p-2 border-t flex justify-end">
-                            <Button size="sm" onClick={() => {
-                                if (tempDateRange?.from && tempDateRange?.to) {
-                                    field.onChange(tempDateRange);
-                                }
-                                setIsDatePickerOpen(false);
-                            }}>Ok</Button>
-                        </div>
-                    </PopoverContent>
-                  </Popover>
+                <FormItem>
+                  <FormLabel>Leave Type</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select leave type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="Vacation">Vacation</SelectItem>
+                      <SelectItem value="Sick Leave">Sick Leave</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
               <Button type="submit">Submit Request</Button>

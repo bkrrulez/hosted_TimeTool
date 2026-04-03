@@ -53,6 +53,7 @@ export type HolidayRequest = {
   startDate: string;
   endDate: string;
   status: "Pending" | "Approved" | "Rejected";
+  type: "Vacation" | "Sick Leave";
   actionByUserId?: string | null;
   actionTimestamp?: string | null;
 };

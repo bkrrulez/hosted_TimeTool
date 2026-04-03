@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -8,13 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { type User, type HolidayRequest } from "@/lib/mock-data";
-import { format, differenceInCalendarDays, addDays, isSameDay, startOfYear, endOfYear, max, min, formatDistanceToNowStrict, parseISO, isWithinInterval, getYear } from "date-fns";
+import { type User, type HolidayRequest } from "@/lib/types";
+import { format, differenceInCalendarDays, addDays, isSameDay, startOfYear, endOfYear, formatDistanceToNowStrict, parseISO, isWithinInterval, getYear } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useHolidays } from '../contexts/HolidaysContext';
 import { useMembers } from '../contexts/MembersContext';
 import { useToast } from '@/hooks/use-toast';
-import { RequestHolidayDialog } from './components/request-holiday-dialog';
+import { RequestLeavesDialog, type LeaveRequestFormValues } from './components/request-holiday-dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -74,19 +75,19 @@ function TeamRequestsTab() {
   
   const handleApprove = (requestId: string) => {
     approveRequest(requestId);
-    toast({ title: "Request Approved", description: "The holiday request has been approved." });
+    toast({ title: "Request Approved", description: "The leave request has been approved." });
   };
   
   const handleReject = (requestId: string) => {
     rejectRequest(requestId);
-    toast({ title: "Request Rejected", description: "The holiday request has been rejected.", variant: 'destructive' });
+    toast({ title: "Request Rejected", description: "The leave request has been rejected.", variant: 'destructive' });
   };
 
   return (
      <Card>
       <CardHeader>
-        <CardTitle>Team Holiday Requests</CardTitle>
-        <CardDescription>Review and manage holiday requests from your team.</CardDescription>
+        <CardTitle>Team Leave Requests</CardTitle>
+        <CardDescription>Review and manage vacation and sick leave requests from your team.</CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="pending">
@@ -100,6 +101,7 @@ function TeamRequestsTab() {
                         <TableRow>
                         <TableHead>Member</TableHead>
                         <TableHead>Dates</TableHead>
+                        <TableHead>Type</TableHead>
                         <TableHead className="hidden sm:table-cell">Duration</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -128,6 +130,9 @@ function TeamRequestsTab() {
                             <TableCell className="font-medium">
                                 {format(new Date(req.startDate), 'PP')} - {format(new Date(req.endDate), 'PP')}
                             </TableCell>
+                            <TableCell>
+                                <Badge variant="outline">{req.type}</Badge>
+                            </TableCell>
                             <TableCell className="hidden sm:table-cell">
                                 {getDurationInDays(req.startDate, req.endDate)} days
                             </TableCell>
@@ -145,8 +150,8 @@ function TeamRequestsTab() {
                         );
                         }) : (
                             <TableRow>
-                                <TableCell colSpan={4} className="h-24 text-center">
-                                    No pending holiday requests.
+                                <TableCell colSpan={5} className="h-24 text-center">
+                                    No pending leave requests.
                                 </TableCell>
                             </TableRow>
                         )}
@@ -159,6 +164,7 @@ function TeamRequestsTab() {
                         <TableRow>
                             <TableHead>Member</TableHead>
                             <TableHead>Dates</TableHead>
+                            <TableHead>Type</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Action By</TableHead>
                         </TableRow>
@@ -182,6 +188,9 @@ function TeamRequestsTab() {
                                     {format(new Date(req.startDate), 'PP')} - {format(new Date(req.endDate), 'PP')}
                                 </TableCell>
                                 <TableCell>
+                                    <Badge variant="outline">{req.type}</Badge>
+                                </TableCell>
+                                <TableCell>
                                     <Badge variant={getStatusVariant(req.status)} className={cn(getStatusVariant(req.status) === 'default' && 'bg-green-600')}>{req.status}</Badge>
                                 </TableCell>
                                  <TableCell>
@@ -196,7 +205,7 @@ function TeamRequestsTab() {
                             )
                         }) : (
                              <TableRow>
-                                <TableCell colSpan={4} className="h-24 text-center">
+                                <TableCell colSpan={5} className="h-24 text-center">
                                     No historical requests found.
                                 </TableCell>
                             </TableRow>
@@ -266,20 +275,24 @@ export default function HolidaysPage() {
   const userAllowance = getProratedAllowance(currentUser);
   const userHolidayRequests = holidayRequests.filter(req => req.userId === currentUser.id);
 
-  const takenDays = userHolidayRequests
-    .filter(req => req.status === 'Approved')
+  const takenVacationDays = userHolidayRequests
+    .filter(req => req.status === 'Approved' && req.type === 'Vacation')
     .reduce((acc, req) => acc + calculateDurationInWorkdays(new Date(req.startDate), new Date(req.endDate), req.userId), 0);
 
-  const remainingDays = userAllowance - takenDays;
+  const takenSickDays = userHolidayRequests
+    .filter(req => req.status === 'Approved' && req.type === 'Sick Leave')
+    .reduce((acc, req) => acc + calculateDurationInWorkdays(new Date(req.startDate), new Date(req.endDate), req.userId), 0);
+
+  const remainingDays = userAllowance - takenVacationDays;
 
   const getDurationText = (days: number) => {
       const formattedDays = parseFloat(days.toFixed(2));
       return formattedDays === 1 ? '1 day' : `${formattedDays} days`;
   }
   
-  const handleSaveRequest = (data: { date: { from: Date; to: Date } }) => {
-    if (data.date.from && data.date.to) {
-        const requestedDuration = calculateDurationInWorkdays(data.date.from, data.date.to, currentUser.id);
+  const handleSaveRequest = (data: LeaveRequestFormValues) => {
+    if (data.from && data.to) {
+        const requestedDuration = calculateDurationInWorkdays(data.from, data.to, currentUser.id);
         
         if (requestedDuration <= 0) {
             toast({
@@ -290,7 +303,7 @@ export default function HolidaysPage() {
             return;
         }
 
-        if (requestedDuration > remainingDays) {
+        if (data.type === 'Vacation' && requestedDuration > remainingDays) {
             toast({
                 variant: 'destructive',
                 title: 'Insufficient Leave Allowance',
@@ -300,8 +313,9 @@ export default function HolidaysPage() {
         }
 
         addHolidayRequest({
-            startDate: data.date.from.toISOString(),
-            endDate: data.date.to.toISOString(),
+            startDate: data.from.toISOString(),
+            endDate: data.to.toISOString(),
+            type: data.type,
         });
         setIsRequestDialogOpen(false);
     }
@@ -312,7 +326,7 @@ export default function HolidaysPage() {
     setWithdrawingRequest(null);
     toast({
         title: "Request Withdrawn",
-        description: "Your holiday request has been successfully withdrawn.",
+        description: "Your leave request has been successfully withdrawn.",
     });
   }
 
@@ -324,10 +338,10 @@ export default function HolidaysPage() {
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
           <div>
             <h1 className="text-3xl font-bold font-headline">Holidays</h1>
-            <p className="text-muted-foreground">Manage your holiday requests and allowance.</p>
+            <p className="text-muted-foreground">Manage your leave requests and allowance.</p>
           </div>
           <Button onClick={() => setIsRequestDialogOpen(true)}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Request Holiday
+            <PlusCircle className="mr-2 h-4 w-4" /> Request Leaves
           </Button>
         </div>
         
@@ -337,7 +351,7 @@ export default function HolidaysPage() {
                 {canViewTeamRequests && <TabsTrigger value="team-requests">Team Requests</TabsTrigger>}
             </TabsList>
             <TabsContent value="my-requests">
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     <Card>
                         <CardHeader>
                             <CardTitle>Total Allowance in {currentYear}</CardTitle>
@@ -349,33 +363,43 @@ export default function HolidaysPage() {
                     </Card>
                     <Card>
                         <CardHeader>
-                            <CardTitle>Taken in {currentYear}</CardTitle>
-                            <CardDescription>Approved leave requests</CardDescription>
+                            <CardTitle>Vacation Taken in {currentYear}</CardTitle>
+                            <CardDescription>Approved vacation requests</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-3xl font-bold">{getDurationText(takenDays)}</p>
+                            <p className="text-3xl font-bold">{getDurationText(takenVacationDays)}</p>
                         </CardContent>
                     </Card>
                     <Card>
                         <CardHeader>
                             <CardTitle>Remaining in {currentYear}</CardTitle>
-                            <CardDescription>Available leave days</CardDescription>
+                            <CardDescription>Available vacation days</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <p className="text-3xl font-bold">{getDurationText(remainingDays)}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Sick Leaves in {currentYear}</CardTitle>
+                            <CardDescription>Approved sick leave days</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-3xl font-bold">{getDurationText(takenSickDays)}</p>
                         </CardContent>
                     </Card>
                 </div>
                 <Card className="mt-6">
                     <CardHeader>
                         <CardTitle>My Requests</CardTitle>
-                        <CardDescription>A list of your submitted holiday requests.</CardDescription>
+                        <CardDescription>A list of your submitted leave requests.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Dates</TableHead>
+                                    <TableHead>Type</TableHead>
                                     <TableHead className="hidden sm:table-cell">Duration</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
@@ -386,6 +410,9 @@ export default function HolidaysPage() {
                                     <TableRow key={req.id}>
                                     <TableCell className="font-medium">
                                         {format(new Date(req.startDate), 'LLL dd, y')} - {format(new Date(req.endDate), 'LLL dd, y')}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant="outline">{req.type}</Badge>
                                     </TableCell>
                                     <TableCell className="hidden sm:table-cell">
                                         {getDurationText(calculateDurationInWorkdays(new Date(req.startDate), new Date(req.endDate), req.userId))}
@@ -402,6 +429,11 @@ export default function HolidaysPage() {
                                     </TableCell>
                                     </TableRow>
                                 ))}
+                                {userHolidayRequests.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="h-24 text-center">No leave requests found.</TableCell>
+                                    </TableRow>
+                                )}
                             </TableBody>
                         </Table>
                     </CardContent>
@@ -414,7 +446,7 @@ export default function HolidaysPage() {
             )}
         </Tabs>
       </div>
-      <RequestHolidayDialog 
+      <RequestLeavesDialog 
         isOpen={isRequestDialogOpen}
         onOpenChange={setIsRequestDialogOpen}
         onSave={handleSaveRequest}
@@ -424,7 +456,7 @@ export default function HolidaysPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will withdraw your holiday request. This action cannot be undone.
+              This will withdraw your leave request. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
