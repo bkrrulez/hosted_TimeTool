@@ -41,9 +41,37 @@ const getStatusVariant = (status: "Pending" | "Approved" | "Rejected"): "seconda
 
 function TeamRequestsTab() {
   const { toast } = useToast();
-  const { holidayRequests, approveRequest, rejectRequest } = useHolidays();
+  const { holidayRequests, approveRequest, rejectRequest, publicHolidays, customHolidays } = useHolidays();
   const { teamMembers } = useMembers();
   const { currentUser } = useAuth();
+
+  const calculateDurationInWorkdays = React.useCallback((startDate: Date, endDate: Date, userId: string): number => {
+    let workdays = 0;
+    const user = teamMembers.find(u => u.id === userId);
+    if (!user) return 0;
+
+    const current = new Date(startDate);
+    const end = new Date(endDate);
+    current.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
+    while (current <= end) {
+        const dayOfWeek = current.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            const dateStr = format(current, 'yyyy-MM-dd');
+            const isPublic = publicHolidays.some(h => format(parseISO(h.date), 'yyyy-MM-dd') === dateStr);
+            const isCustom = customHolidays.some(h => {
+                const applies = (h.appliesTo === 'all-members') ||
+                                (h.appliesTo === 'all-teams' && !!user.teamId) ||
+                                (h.appliesTo === user.teamId);
+                return applies && format(parseISO(h.date), 'yyyy-MM-dd') === dateStr;
+            });
+            if (!isPublic && !isCustom) workdays++;
+        }
+        current.setDate(current.getDate() + 1);
+    }
+    return workdays;
+  }, [publicHolidays, customHolidays, teamMembers]);
 
   const { pendingRequests, historyRequests } = React.useMemo(() => {
     const all = holidayRequests.filter(req => {
@@ -66,11 +94,10 @@ function TeamRequestsTab() {
     return teamMembers.find(m => m.id === userId);
   };
 
-  const getDurationInDays = (startDate: string, endDate: string) => {
-    const start = parseISO(startDate);
-    const end = parseISO(endDate);
-    return differenceInCalendarDays(end, start) + 1;
-  };
+  const getDurationText = (days: number) => {
+      const formattedDays = parseFloat(days.toFixed(2));
+      return formattedDays === 1 ? '1 day' : `${formattedDays} days`;
+  }
   
   const handleApprove = (requestId: string) => {
     approveRequest(requestId);
@@ -133,7 +160,7 @@ function TeamRequestsTab() {
                                 <Badge variant="outline">{req.type}</Badge>
                             </TableCell>
                             <TableCell className="hidden sm:table-cell">
-                                {getDurationInDays(req.startDate, req.endDate)} days
+                                {getDurationText(calculateDurationInWorkdays(parseISO(req.startDate), parseISO(req.endDate), req.userId))}
                             </TableCell>
                             <TableCell className="text-right">
                                 <div className="flex gap-2 justify-end">
