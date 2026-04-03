@@ -38,7 +38,7 @@ export function NotificationPopover({ onClose }: NotificationPopoverProps) {
     if (!currentUser) return [];
     return pushMessages.filter((msg) => {
       if (msg.receivers === 'all-members') return true;
-      if (msg.receivers === 'all-teams' && currentUser.teamId) return true;
+      if (msg.receivers === 'all-teams' && (currentUser.teamId || currentUser.role === 'Super Admin')) return true;
       if (Array.isArray(msg.receivers) && currentUser.teamId) {
         return msg.receivers.includes(currentUser.teamId);
       }
@@ -56,15 +56,20 @@ export function NotificationPopover({ onClose }: NotificationPopoverProps) {
   const displayablePushMessages = activePushMessages.filter(msg => !expiredAndReadPushMessages.find(expired => expired.id === msg.id));
   
   // App Notifications (e.g., Holiday Requests)
-  const { notifications, markAsRead } = useNotifications();
+  const { notifications, markAsRead, fetchNotifications } = useNotifications();
   const { holidayRequests, approveRequest, rejectRequest } = useHolidays();
+
+  // Refresh notifications on mount to ensure badge and list are in sync
+  React.useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   const userAppNotifications = React.useMemo(() => {
       if (!currentUser) return [];
       return notifications
         .filter(n => {
-            // Ensure recipientIds is an array and contains the current user
-            const recipientIds = Array.isArray(n.recipientIds) ? n.recipientIds : [];
+            // recipientIds is already parsed by server action helper parseArray
+            const recipientIds = n.recipientIds || [];
             if (!recipientIds.includes(currentUser.id) || n.type !== 'holidayRequest') {
                 return false;
             }
@@ -92,7 +97,7 @@ export function NotificationPopover({ onClose }: NotificationPopoverProps) {
         id: notif.id,
         type: notif.type,
         timestamp: notif.timestamp,
-        isRead: (Array.isArray(notif.readBy) ? notif.readBy : []).includes(currentUser.id),
+        isRead: (notif.readBy || []).includes(currentUser.id),
         title: notif.title,
         body: notif.body,
         referenceId: notif.referenceId,

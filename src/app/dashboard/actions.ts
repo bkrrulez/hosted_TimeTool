@@ -27,6 +27,15 @@ import { revalidatePath } from 'next/cache';
 // ========== Mappers ==========
 // Map DB rows to application types
 
+const parseArray = (arr: any) => {
+    if (Array.isArray(arr)) return arr;
+    if (typeof arr === 'string') {
+        // Handle PostgreSQL string format "{val1,val2}"
+        return arr.replace(/[{}]/g, '').split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return [];
+};
+
 const mapDbUserToUser = (dbUser: any): User => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -804,7 +813,7 @@ export async function updateProject(projectId: string, data: Omit<Project, 'id'>
     try {
         await client.query('BEGIN');
         await client.query(
-            'UPDATE projects SET name = $1, budget = $2, hours_per_year = $3, details = $4 WHERE id = $5',
+            `UPDATE projects SET name = $1, budget = $2, hours_per_year = $3, details = $4 WHERE id = $5`,
             [name, budget, hoursPerYear, details, projectId]
         );
         await client.query('DELETE FROM project_tasks WHERE project_id = $1', [projectId]);
@@ -1256,15 +1265,6 @@ export async function getNotifications(): Promise<AppNotification[]> {
         ORDER BY n.timestamp DESC
     `);
 
-    // Helper to ensure array columns are JavaScript arrays (sometimes returned as strings like "{...}")
-    const parseArray = (arr: any) => {
-        if (Array.isArray(arr)) return arr;
-        if (typeof arr === 'string') {
-            return arr.replace(/[{}]/g, '').split(',').filter(Boolean);
-        }
-        return [];
-    };
-
     return result.rows.map(row => ({
         ...row,
         timestamp: new Date(row.timestamp).toISOString(),
@@ -1338,7 +1338,7 @@ export async function getPushMessages(): Promise<PushMessage[]> {
         messageBody: row.message_body,
         startDate: new Date(row.start_date).toISOString(),
         endDate: new Date(row.end_date).toISOString(),
-        receivers: row.receivers === 'individual-teams' ? row.team_ids : row.receivers,
+        receivers: row.receivers === 'individual-teams' ? parseArray(row.team_ids) : row.receivers,
     }));
 }
 

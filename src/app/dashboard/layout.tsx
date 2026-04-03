@@ -143,7 +143,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     const userReadIds = userMessageStates[currentUser.id]?.readMessageIds || [];
     return pushMessages.filter(msg => {
       const isApplicable = msg.receivers === 'all-members' ||
-                           (msg.receivers === 'all-teams' && currentUser.teamId) ||
+                           (msg.receivers === 'all-teams' && (currentUser.teamId || currentUser.role === 'Super Admin')) ||
                            (Array.isArray(msg.receivers) && currentUser.teamId && msg.receivers.includes(currentUser.teamId));
 
       return isApplicable &&
@@ -155,8 +155,10 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const unreadRequestCount = React.useMemo(() => {
     if (!currentUser) return 0;
     return notifications.filter(n => {
-        const isRecipient = n.recipientIds.includes(currentUser.id);
-        const isUnread = !n.readBy.includes(currentUser.id);
+        const recipientIds = Array.isArray(n.recipientIds) ? n.recipientIds : [];
+        const readBy = Array.isArray(n.readBy) ? n.readBy : [];
+        const isRecipient = recipientIds.includes(currentUser.id);
+        const isUnread = !readBy.includes(currentUser.id);
         if (!isRecipient || !isUnread) return false;
         
         // For holiday requests, only count if the request is still pending

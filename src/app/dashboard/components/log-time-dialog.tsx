@@ -179,7 +179,7 @@ export function LogTimeDialog({ isOpen, onOpenChange, onSave, entryToEdit, userI
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>{isEditMode ? 'Edit Time Entry' : 'Log Time'}</DialogTitle>
           <DialogDescription>
@@ -192,244 +192,246 @@ export function LogTimeDialog({ isOpen, onOpenChange, onSave, entryToEdit, userI
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <fieldset disabled={isFormDisabled} className="space-y-4">
-              {!isEditMode && (currentUser.role === 'Super Admin' || currentUser.role === 'Team Lead') && (
-                <FormField
-                  control={form.control}
-                  name="userId"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>User</FormLabel>
-                        <Popover open={isUserComboboxOpen} onOpenChange={setIsUserComboboxOpen}>
-                            <PopoverTrigger asChild>
-                                <FormControl>
-                                <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    className={cn(
-                                    "justify-between",
-                                    !field.value && "text-muted-foreground"
-                                    )}
-                                >
-                                    {field.value
-                                    ? teamMembers.find(
-                                        (member) => member.id === field.value
-                                        )?.name
-                                    : "Select a user"}
-                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                                </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="p-0">
-                                <Command>
-                                <CommandInput placeholder="Search user..." />
-                                 <CommandList>
-                                    <CommandEmpty>No user found.</CommandEmpty>
-                                    <CommandGroup>
-                                        {teamMembers.map((member) => (
-                                        <CommandItem
-                                            value={member.name}
-                                            key={member.id}
-                                            onSelect={() => {
-                                                form.setValue("userId", member.id);
-                                                setIsUserComboboxOpen(false);
-                                            }}
-                                        >
-                                            <Check
-                                            className={cn(
-                                                "mr-2 h-4 w-4",
-                                                member.id === field.value
-                                                ? "opacity-100"
-                                                : "opacity-0"
-                                            )}
-                                            />
-                                            {member.name}
-                                        </CommandItem>
-                                        ))}
-                                    </CommandGroup>
-                                  </CommandList>
-                                </Command>
-                            </PopoverContent>
-                        </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-              <FormField
-                control={form.control}
-                name="date"
-                render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                        <FormLabel>Date</FormLabel>
-                        <div className="relative">
-                            <FormControl>
-                                <Input
-                                    placeholder="DD/MM/YYYY"
-                                    value={inputValue}
-                                    onChange={(e) => {
-                                        const value = e.target.value;
-                                        setInputValue(value);
-                                        const parsedDate = parse(value, 'dd/MM/yyyy', new Date());
-                                        if (isValid(parsedDate) && getYear(parsedDate) > 1000) {
-                                            field.onChange(parsedDate);
-                                        }
-                                    }}
-                                    onBlur={() => setInputValue(field.value ? format(field.value, 'dd/MM/yyyy') : '')}
-                                    disabled={isEditMode}
-                                    className="pr-10"
-                                />
-                            </FormControl>
-                            <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="absolute inset-y-0 right-0 h-full px-3 text-muted-foreground hover:bg-transparent"
-                                        disabled={isEditMode}
-                                    >
-                                        <CalendarIcon className="h-4 w-4" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar
-                                        mode="single"
-                                        selected={field.value}
-                                        onSelect={(date) => {
-                                            if (date) {
-                                                field.onChange(date);
-                                                setInputValue(format(date, 'dd/MM/yyyy'));
-                                            }
-                                            setIsDatePickerOpen(false);
-                                        }}
-                                        toDate={new Date()}
-                                        disabled={(date) => isAfter(date, new Date()) || isDateFrozen(date)}
-                                        initialFocus
-                                        captionLayout="dropdown-buttons"
-                                        fromYear={new Date().getFullYear() - 10}
-                                        toYear={new Date().getFullYear()}
-                                    />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 flex-1 overflow-hidden flex flex-col">
+            <div className="flex-1 overflow-y-auto pr-2">
+              <fieldset disabled={isFormDisabled} className="space-y-4 pb-4">
+                {!isEditMode && (currentUser.role === 'Super Admin' || currentUser.role === 'Team Lead') && (
+                  <FormField
+                    control={form.control}
+                    name="userId"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>User</FormLabel>
+                          <Popover open={isUserComboboxOpen} onOpenChange={setIsUserComboboxOpen}>
+                              <PopoverTrigger asChild>
+                                  <FormControl>
+                                  <Button
+                                      variant="outline"
+                                      role="combobox"
+                                      className={cn(
+                                      "justify-between",
+                                      !field.value && "text-muted-foreground"
+                                      )}
+                                  >
+                                      {field.value
+                                      ? teamMembers.find(
+                                          (member) => member.id === field.value
+                                          )?.name
+                                      : "Select a user"}
+                                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                  </Button>
+                                  </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="p-0">
+                                  <Command>
+                                  <CommandInput placeholder="Search user..." />
+                                  <CommandList>
+                                      <CommandEmpty>No user found.</CommandEmpty>
+                                      <CommandGroup>
+                                          {teamMembers.map((member) => (
+                                          <CommandItem
+                                              value={member.name}
+                                              key={member.id}
+                                              onSelect={() => {
+                                                  form.setValue("userId", member.id);
+                                                  setIsUserComboboxOpen(false);
+                                              }}
+                                          >
+                                              <Check
+                                              className={cn(
+                                                  "mr-2 h-4 w-4",
+                                                  member.id === field.value
+                                                  ? "opacity-100"
+                                                  : "opacity-0"
+                                              )}
+                                              />
+                                              {member.name}
+                                          </CommandItem>
+                                          ))}
+                                      </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                              </PopoverContent>
+                          </Popover>
                         <FormMessage />
-                    </FormItem>
+                      </FormItem>
+                    )}
+                  />
                 )}
-              />
-              <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="startTime"
+                  name="date"
+                  render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                          <FormLabel>Date</FormLabel>
+                          <div className="relative">
+                              <FormControl>
+                                  <Input
+                                      placeholder="DD/MM/YYYY"
+                                      value={inputValue}
+                                      onChange={(e) => {
+                                          const value = e.target.value;
+                                          setInputValue(value);
+                                          const parsedDate = parse(value, 'dd/MM/yyyy', new Date());
+                                          if (isValid(parsedDate) && getYear(parsedDate) > 1000) {
+                                              field.onChange(parsedDate);
+                                          }
+                                      }}
+                                      onBlur={() => setInputValue(field.value ? format(field.value, 'dd/MM/yyyy') : '')}
+                                      disabled={isEditMode}
+                                      className="pr-10"
+                                  />
+                              </FormControl>
+                              <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                                  <PopoverTrigger asChild>
+                                      <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="absolute inset-y-0 right-0 h-full px-3 text-muted-foreground hover:bg-transparent"
+                                          disabled={isEditMode}
+                                      >
+                                          <CalendarIcon className="h-4 w-4" />
+                                      </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                      <Calendar
+                                          mode="single"
+                                          selected={field.value}
+                                          onSelect={(date) => {
+                                              if (date) {
+                                                  field.onChange(date);
+                                                  setInputValue(format(date, 'dd/MM/yyyy'));
+                                              }
+                                              setIsDatePickerOpen(false);
+                                          }}
+                                          toDate={new Date()}
+                                          disabled={(date) => isAfter(date, new Date()) || isDateFrozen(date)}
+                                          initialFocus
+                                          captionLayout="dropdown-buttons"
+                                          fromYear={new Date().getFullYear() - 10}
+                                          toYear={new Date().getFullYear()}
+                                      />
+                                  </PopoverContent>
+                              </Popover>
+                          </div>
+                          <FormMessage />
+                      </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="startTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Start Time</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="endTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>End Time</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="project"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Start Time</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
+                      <FormLabel>Project</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={!targetUser}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a project" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {availableProjects.length > 0 ? (
+                            availableProjects.map((project) => (
+                              <SelectItem key={project.id} value={project.name}>{project.name}</SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="none" disabled>No projects assigned</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
                 <FormField
                   control={form.control}
-                  name="endTime"
+                  name="task"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>End Time</FormLabel>
+                      <FormLabel>Task</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={!selectedProjectName}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a task" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {availableTasks.map((task) => (
+                            <SelectItem key={task.id} value={task.name}>{task.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="placeOfWork"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Place of Work</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select place of work" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Home Office">Home Office</SelectItem>
+                          <SelectItem value="In Office">In Office</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="remarks"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Remarks</FormLabel>
                       <FormControl>
-                        <Input type="time" {...field} />
+                        <Textarea placeholder="Add any extra details..." {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </div>
-              <FormField
-                control={form.control}
-                name="project"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Project</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={!targetUser}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a project" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {availableProjects.length > 0 ? (
-                          availableProjects.map((project) => (
-                            <SelectItem key={project.id} value={project.name}>{project.name}</SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="none" disabled>No projects assigned</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="task"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Task</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={!selectedProjectName}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a task" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {availableTasks.map((task) => (
-                          <SelectItem key={task.id} value={task.name}>{task.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="placeOfWork"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Place of Work</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select place of work" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Home Office">Home Office</SelectItem>
-                        <SelectItem value="In Office">In Office</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="remarks"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Remarks</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Add any extra details..." {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </fieldset>
-            <DialogFooter>
+              </fieldset>
+            </div>
+            <DialogFooter className="pt-4 mt-auto border-t">
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
                 <Button type="submit" disabled={isFormDisabled}>{isEditMode ? 'Save Changes' : 'Log Time'}</Button>
             </DialogFooter>
@@ -439,5 +441,3 @@ export function LogTimeDialog({ isOpen, onOpenChange, onSave, entryToEdit, userI
     </Dialog>
   )
 }
-
-    

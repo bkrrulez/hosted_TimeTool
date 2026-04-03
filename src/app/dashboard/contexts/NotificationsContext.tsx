@@ -12,6 +12,7 @@ interface NotificationsContextType {
   addNotification: (notification: NotificationInput) => Promise<void>;
   markAsRead: (notificationId: string, userId: string) => Promise<void>;
   markAllAsRead: (userId: string) => Promise<void>;
+  fetchNotifications: () => Promise<void>;
 }
 
 const NotificationsContext = React.createContext<NotificationsContextType | undefined>(undefined);
@@ -55,7 +56,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   };
 
   return (
-    <NotificationsContext.Provider value={{ notifications, addNotification, markAsRead, markAllAsRead }}>
+    <NotificationsContext.Provider value={{ notifications, addNotification, markAsRead, markAllAsRead, fetchNotifications }}>
       {children}
     </NotificationsContext.Provider>
   );
@@ -68,5 +69,3 @@ export const useNotifications = () => {
   }
   return context;
 };
-
-    
