@@ -218,6 +218,7 @@ export default function ReportsPage() {
   const [selectedMonth, setSelectedMonth] = React.useState<number>(new Date().getMonth());
   const [selectedWeekIndex, setSelectedWeekIndex] = React.useState<number>(0);
   const [selectedTeams, setSelectedTeams] = React.useState<string[]>(['all-teams']);
+  const [selectedStatus, setSelectedStatus] = React.useState<string>('Active');
   const [customDateRange, setCustomDateRange] = React.useState<DateRange | undefined>({
       from: startOfMonth(new Date()),
       to: endOfMonth(new Date()),
@@ -278,9 +279,32 @@ export default function ReportsPage() {
     });
 
     const visibleMembers = baseVisibleMembers.filter(member => {
-        if (selectedTeams.includes('all-teams')) return true;
-        if (selectedTeams.includes('no-team') && !member.teamId) return true;
-        return member.teamId && selectedTeams.includes(member.teamId);
+        // Team filter
+        let teamMatches = false;
+        if (selectedTeams.includes('all-teams')) {
+            teamMatches = true;
+        } else if (selectedTeams.includes('no-team') && !member.teamId) {
+            teamMatches = true;
+        } else if (member.teamId && selectedTeams.includes(member.teamId)) {
+            teamMatches = true;
+        }
+        
+        if (!teamMatches) return false;
+
+        // Status filter
+        if (selectedStatus === 'all-status') return true;
+        
+        const today = startOfDay(new Date());
+        const contracts = member.contracts || [];
+        if (contracts.length === 0) return selectedStatus === 'Expired';
+
+        const hasActiveOrUpcoming = contracts.some(c => {
+            const end = c.endDate ? parseISO(c.endDate) : new Date('9999-12-31');
+            return today.getTime() <= end.getTime();
+        });
+
+        const memberStatus = hasActiveOrUpcoming ? 'Active' : 'Expired';
+        return memberStatus === selectedStatus;
     });
     
     const visibleMemberIds = visibleMembers.map(m => m.id);
@@ -440,7 +464,7 @@ export default function ReportsPage() {
     })).sort((a,b) => a.user.name.localeCompare(b.user.name));
 
     return { consolidatedData, projectReport, taskReport, detailedReport };
-  }, [teamMembers, currentUser, selectedTeams, timeEntries, periodStart, periodEnd, selectedYear, publicHolidays, customHolidays, annualLeaveAllowance]);
+  }, [teamMembers, currentUser, selectedTeams, selectedStatus, timeEntries, periodStart, periodEnd, selectedYear, publicHolidays, customHolidays, annualLeaveAllowance]);
   
   const sortedConsolidatedData = React.useMemo(() => {
     return [...reports.consolidatedData].sort((a, b) => {
@@ -786,6 +810,18 @@ export default function ReportsPage() {
             </RadioGroup>
         )}
         <div className={cn("flex items-center gap-2", tab !== 'team-report' && "w-full justify-end")}>
+            {tab === 'team-report' && (
+                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                    <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all-status">All Status</SelectItem>
+                        <SelectItem value="Active">Active</SelectItem>
+                        <SelectItem value="Expired">Expired</SelectItem>
+                    </SelectContent>
+                </Select>
+            )}
             {currentUser.role === 'Super Admin' && tab === 'team-report' && (
                 <MultiSelect 
                     options={teamOptions}
