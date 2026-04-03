@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -62,34 +61,22 @@ export function MyDashboard() {
   }, [publicHolidays, customHolidays, teamMembers]);
 
   const getProratedAllowance = React.useCallback((user: User) => {
-    const parseDateStringAsLocal = (dateString: string): Date => {
-        const [year, month, day] = dateString.split('-').map(Number);
-        return new Date(year, month - 1, day);
-    };
-
-    const { startDate, endDate } = user.contract;
     const today = new Date();
     const yearStart = startOfYear(today);
     const yearEnd = endOfYear(today);
-    
-    // Use the user's primary contract to determine the prorata basis,
-    // assuming it represents their main employment span.
-    const contractStart = parseDateStringAsLocal(startDate);
-    const contractEnd = endDate ? parseDateStringAsLocal(endDate) : yearEnd;
+    const daysInYear = differenceInCalendarDays(yearEnd, yearStart) + 1;
 
-    const effectiveStartDate = max([yearStart, contractStart]);
-    const effectiveEndDate = min([yearEnd, contractEnd]);
-
-    if (effectiveStartDate > effectiveEndDate) {
-        return 0;
+    let daysWithActiveContract = 0;
+    for (let d = new Date(yearStart); d <= yearEnd; d = addDays(d, 1)) {
+        const isCovered = user.contracts.some(c => {
+            const contractStart = parseISO(c.startDate);
+            const contractEnd = c.endDate ? parseISO(c.endDate) : new Date('9999-12-31');
+            return isWithinInterval(d, { start: contractStart, end: contractEnd });
+        });
+        if (isCovered) daysWithActiveContract++;
     }
 
-    const daysInYear = differenceInCalendarDays(yearEnd, yearStart) + 1;
-    const contractDurationInYear = differenceInCalendarDays(effectiveEndDate, effectiveStartDate) + 1;
-    
-    const prorated = (annualLeaveAllowance / daysInYear) * contractDurationInYear;
-    
-    return prorated;
+    return (annualLeaveAllowance / daysInYear) * daysWithActiveContract;
   }, [annualLeaveAllowance]);
 
   const userAllowance = getProratedAllowance(currentUser);
@@ -192,13 +179,13 @@ export function MyDashboard() {
 
     // Calculate Holiday Days Taken
     const takenDays = holidayRequests
-      .filter(req => req.userId === currentUser.id && req.status === 'Approved')
+      .filter(req => req.userId === currentUser.id && req.status === 'Approved' && getYear(parseISO(req.startDate)) === currentYear)
       .reduce((acc, req) => acc + calculateDurationInWorkdays(new Date(req.startDate), new Date(req.endDate), req.userId), 0);
 
     const remainingDays = userAllowance - takenDays;
 
     return { totalHours, expectedHoursSoFar, overtime, takenDays, remainingDays };
-  }, [timeEntries, publicHolidays, customHolidays, holidayRequests, userAllowance, currentUser, getProratedAllowance, annualLeaveAllowance, calculateDurationInWorkdays]);
+  }, [timeEntries, publicHolidays, customHolidays, holidayRequests, userAllowance, currentUser, annualLeaveAllowance, calculateDurationInWorkdays]);
 
   const upcomingHolidays = React.useMemo(() => {
     const today = new Date();
@@ -206,7 +193,7 @@ export function MyDashboard() {
     return publicHolidays
       .map(h => ({...h, dateObj: parseISO(h.date)}))
       .filter(h => h.dateObj >= today)
-      .sort((a,b) => a.dateObj.getTime() - b.dateObj.getTime())
+      .sort((a,b) => h.dateObj.getTime() - b.dateObj.getTime())
       .slice(0,3);
   }, [publicHolidays]);
 
@@ -231,6 +218,8 @@ export function MyDashboard() {
     setSelectedDayForDialog(entryDate);
     setIsDetailsDialogOpen(true);
   };
+
+  const currentYear = new Date().getFullYear();
 
   return (
     <>
@@ -298,7 +287,7 @@ export function MyDashboard() {
           ) : isHolidaysNavVisible ? (
               <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">{t('holidaysTaken')}</CardTitle>
+                      <CardTitle className="text-sm font-medium">Holidays Taken in {currentYear}</CardTitle>
                       <Users className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
@@ -384,5 +373,3 @@ export function MyDashboard() {
     </>
   )
 }
-
-    

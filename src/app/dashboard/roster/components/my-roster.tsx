@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -10,7 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTimeTracking } from '../../contexts/TimeTrackingContext';
 import { useHolidays } from '../../contexts/HolidaysContext';
 import { useRoster, AbsenceType } from '../../contexts/RosterContext';
-import { getDay, getYear, min, max, format, DayProps, isSameDay, addDays, isWithinInterval } from 'date-fns';
+import { getDay, getYear, min, max, format, DayProps, isSameDay, addDays, isWithinInterval, parseISO } from 'date-fns';
 import { MarkAbsenceDialog, AbsenceSubmitData } from './mark-absence-dialog';
 import type { Absence, PublicHoliday, CustomHoliday } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
@@ -28,7 +27,7 @@ const months = Array.from({ length: 12 }, (_, i) => ({
 export function MyRoster() {
     const { currentUser } = useAuth();
     const { timeEntries } = useTimeTracking();
-    const { publicHolidays, customHolidays } = useHolidays();
+    const { publicHolidays, customHolidays, holidayRequests } = useHolidays();
     const { absences, addAbsence, deleteAbsencesInRange } = useRoster();
 
     const [selectedDate, setSelectedDate] = React.useState(new Date());
@@ -247,12 +246,18 @@ export function MyRoster() {
             publicHoliday: (date: Date) => publicHolidays.some(ph => 
                 ph.date.split('T')[0] === format(date, 'yyyy-MM-dd')
             ),
-        }), [userId, timeEntries, absences, publicHolidays]);
+            approvedHoliday: (date: Date) => holidayRequests.some(r =>
+                r.userId === userId &&
+                r.status === 'Approved' &&
+                isWithinInterval(date, { start: parseISO(r.startDate), end: parseISO(r.endDate) })
+            ),
+        }), [userId, timeEntries, absences, publicHolidays, holidayRequests]);
     
         function Day(props: DayProps) {
             const dayStr = format(props.date, 'yyyy-MM-dd');
-            let className = "w-full h-full p-0 m-0 flex items-center justify-center";
+            let className = "w-full h-full p-0 m-0 flex flex-col items-center justify-center relative";
             let tooltip = '';
+            let footerText = '';
     
             if (modifiers.publicHoliday(props.date)) {
                 className = cn(className, "bg-orange-100 dark:bg-orange-900/50");
@@ -262,7 +267,11 @@ export function MyRoster() {
                 tooltip = getDay(props.date) === 0 ? 'Sunday' : 'Saturday';
             }
     
-            if (modifiers.sickLeave(props.date)) {
+            if (modifiers.approvedHoliday(props.date)) {
+                className = cn(className, "bg-yellow-400 dark:bg-yellow-600");
+                tooltip = 'Vacation';
+                footerText = 'Vacation';
+            } else if (modifiers.sickLeave(props.date)) {
                 className = cn(className, "bg-red-300 dark:bg-red-800");
                 tooltip = 'Sick Leave';
             } else if (modifiers.generalAbsence(props.date)) {
@@ -280,7 +289,13 @@ export function MyRoster() {
                 tooltip = 'Work Logged';
             }
     
-            const content = <button type="button" className={className}>{format(props.date, 'd')}</button>;
+            const content = (
+                <button type="button" className={className}>
+                    <span>{format(props.date, 'd')}</span>
+                    {footerText && <span className="text-[8px] font-bold mt-1 uppercase leading-none">{footerText}</span>}
+                </button>
+            );
+
             if (tooltip) {
                 return (
                     <TooltipProvider delayDuration={0}>

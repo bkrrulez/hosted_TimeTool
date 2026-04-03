@@ -87,7 +87,7 @@ const DayContent: React.FC<DayContentProps> = (props) => {
   const hasManualEntries = (monthlyData.dailyEntries[dayOfMonth] || []).length > 0;
   
   const isWeekend = getDay(date) === 0 || getDay(date) === 6;
-  const isLeaveDay = monthlyData.personalLeaveDays.some(d => d.toDateString() === date.toDateString());
+  const isLeaveDay = monthlyData.personalLeaveDays.some(d => isSameDay(d, date));
 
   const wrapperProps = {
     className: "relative w-full h-full flex flex-col items-center justify-between text-center p-1",
@@ -104,13 +104,16 @@ const DayContent: React.FC<DayContentProps> = (props) => {
         {hours !== undefined && hours > 0 ? (
             <span className="text-xs font-bold text-primary">{hours.toFixed(1)}h</span>
         ) : <span className="h-[15px]" />}
-        {!isWeekend && !isLeaveDay ? (
+        {!isWeekend && (
             holidayName ? (
                 <span className="text-[10px] font-semibold text-green-600 truncate px-1">
                     {holidayName}
                 </span>
+            ) : isLeaveDay ? (
+                <span className="text-[10px] font-semibold text-yellow-700 mt-auto">Vacation</span>
             ) : <span className="h-[15px]" />
-        ) : <span className="h-[15px]" />}
+        )}
+        {isWeekend && <span className="h-[15px]" />}
     </div>
   );
 };

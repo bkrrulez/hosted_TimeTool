@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -10,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type User, type HolidayRequest } from "@/lib/mock-data";
-import { format, differenceInCalendarDays, addDays, isSameDay, startOfYear, endOfYear, max, min, formatDistanceToNowStrict } from "date-fns";
+import { format, differenceInCalendarDays, addDays, isSameDay, startOfYear, endOfYear, max, min, formatDistanceToNowStrict, parseISO, isWithinInterval, getYear } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useHolidays } from '../contexts/HolidaysContext';
 import { useMembers } from '../contexts/MembersContext';
@@ -246,32 +245,22 @@ export default function HolidaysPage() {
   }, [publicHolidays, customHolidays, teamMembers]);
 
   const getProratedAllowance = React.useCallback((user: User) => {
-    const parseDateStringAsLocal = (dateString: string): Date => {
-        const [year, month, day] = dateString.split('-').map(Number);
-        return new Date(year, month - 1, day);
-    };
-
-    const { startDate, endDate } = user.contract;
     const today = new Date();
     const yearStart = startOfYear(today);
     const yearEnd = endOfYear(today);
     const daysInYear = differenceInCalendarDays(yearEnd, yearStart) + 1;
 
-    const contractStart = parseDateStringAsLocal(startDate);
-    const contractEnd = endDate ? parseDateStringAsLocal(endDate) : yearEnd;
-
-    const effectiveStartDate = max([yearStart, contractStart]);
-    const effectiveEndDate = min([yearEnd, contractEnd]);
-
-    if (effectiveStartDate > effectiveEndDate) {
-        return 0;
+    let daysWithActiveContract = 0;
+    for (let d = new Date(yearStart); d <= yearEnd; d = addDays(d, 1)) {
+        const isCovered = user.contracts.some(c => {
+            const contractStart = parseISO(c.startDate);
+            const contractEnd = c.endDate ? parseISO(c.endDate) : new Date('9999-12-31');
+            return isWithinInterval(d, { start: contractStart, end: contractEnd });
+        });
+        if (isCovered) daysWithActiveContract++;
     }
 
-    const contractDurationInYear = differenceInCalendarDays(effectiveEndDate, effectiveStartDate) + 1;
-    
-    const prorated = (annualLeaveAllowance / daysInYear) * contractDurationInYear;
-    
-    return prorated;
+    return (annualLeaveAllowance / daysInYear) * daysWithActiveContract;
   }, [annualLeaveAllowance]);
 
   const userAllowance = getProratedAllowance(currentUser);
@@ -327,6 +316,8 @@ export default function HolidaysPage() {
     });
   }
 
+  const currentYear = new Date().getFullYear();
+
   return (
     <>
       <div className="space-y-6">
@@ -349,8 +340,8 @@ export default function HolidaysPage() {
                 <div className="grid gap-4 md:grid-cols-3">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Total Allowance</CardTitle>
-                            <CardDescription>Based on your contract</CardDescription>
+                            <CardTitle>Total Allowance in {currentYear}</CardTitle>
+                            <CardDescription>Based on your contract days this year</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <p className="text-3xl font-bold">{getDurationText(userAllowance)}</p>
@@ -358,8 +349,8 @@ export default function HolidaysPage() {
                     </Card>
                     <Card>
                         <CardHeader>
-                            <CardTitle>Taken</CardTitle>
-                            <CardDescription>This year</CardDescription>
+                            <CardTitle>Taken in {currentYear}</CardTitle>
+                            <CardDescription>Approved leave requests</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <p className="text-3xl font-bold">{getDurationText(takenDays)}</p>
@@ -367,8 +358,8 @@ export default function HolidaysPage() {
                     </Card>
                     <Card>
                         <CardHeader>
-                            <CardTitle>Remaining</CardTitle>
-                            <CardDescription>This year</CardDescription>
+                            <CardTitle>Remaining in {currentYear}</CardTitle>
+                            <CardDescription>Available leave days</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <p className="text-3xl font-bold">{getDurationText(remainingDays)}</p>
