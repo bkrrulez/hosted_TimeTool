@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -45,6 +44,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { FileUp } from 'lucide-react';
 import { useTeams } from '../../contexts/TeamsContext';
+import { cn } from '@/lib/utils';
 
 const months = Array.from({ length: 12 }, (_, i) => ({
   value: i,
