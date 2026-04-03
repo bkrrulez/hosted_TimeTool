@@ -1,4 +1,3 @@
-
 'use client';
 import * as React from 'react';
 import { type PublicHoliday, type CustomHoliday, type HolidayRequest } from "@/lib/types";
@@ -146,8 +145,8 @@ export function HolidaysProvider({ children }: { children: React.ReactNode }) {
     };
 
     const withdrawRequest = async (requestId: string) => {
-        const request = holidayRequests.find(r => r.id === currentUser.id);
-        if (request?.userId !== currentUser.id) return;
+        const request = holidayRequests.find(r => r.id === requestId);
+        if (!request || request.userId !== currentUser.id) return;
         
         await deleteHolidayRequest(requestId);
         setHolidayRequests(prev => prev.filter(req => req.id !== requestId));
