@@ -101,6 +101,7 @@ export type DetailedReportData = {
     expectedHours: number;
     loggedHours: number;
     remainingHours: number;
+    inOfficePercentage: number;
     projects: {
         name: string;
         loggedHours: number;
@@ -279,7 +280,6 @@ export default function ReportsPage() {
     });
 
     const visibleMembers = baseVisibleMembers.filter(member => {
-        // Team filter
         let teamMatches = false;
         if (selectedTeams.includes('all-teams')) {
             teamMatches = true;
@@ -291,7 +291,6 @@ export default function ReportsPage() {
         
         if (!teamMatches) return false;
 
-        // Status filter
         if (selectedStatus === 'all-status') return true;
         
         const today = startOfDay(new Date());
@@ -320,11 +319,11 @@ export default function ReportsPage() {
     visibleMembers.forEach(member => {
         detailedAgg[member.id] = {
             user: member, assignedHours: 0, leaveHours: 0, expectedHours: 0, loggedHours: 0, remainingHours: 0,
+            inOfficePercentage: 0,
             projects: []
         };
     });
 
-    // Calculations for all views - Raw Logged Hours
     filteredTimeEntries.forEach(entry => {
         const [projectName, ...taskParts] = entry.task.split(' - ');
         const taskName = taskParts.join(' - ') || 'Unspecified';
@@ -332,17 +331,14 @@ export default function ReportsPage() {
 
         if (!member) return;
 
-        // Project Level
         const projectKey = `${entry.userId}__${projectName}`;
         if (!projectAgg[projectKey]) projectAgg[projectKey] = { key: projectKey, member, projectName, loggedHours: 0 };
         projectAgg[projectKey].loggedHours += entry.duration;
 
-        // Task Level
         const taskKey = `${entry.userId}__${taskName}`;
         if (!taskAgg[taskKey]) taskAgg[taskKey] = { key: taskKey, member, taskName, loggedHours: 0 };
         taskAgg[taskKey].loggedHours += entry.duration;
 
-        // Detailed Level
         if (detailedAgg[entry.userId]) {
             let project = detailedAgg[entry.userId].projects.find(p => p.name === projectName);
             if (!project) {
@@ -360,7 +356,6 @@ export default function ReportsPage() {
         }
     });
 
-    // Breakdown range into monthly segments for accurate year-specific calculations
     const monthSegments: { start: Date; end: Date; year: number }[] = [];
     let current = new Date(periodStart);
     while (current <= periodEnd) {
@@ -370,7 +365,6 @@ export default function ReportsPage() {
         current = startOfMonth(addDays(endOfMonth(current), 1));
     }
 
-    // Pre-calculate stats per encountered year
     const uniqueYears = Array.from(new Set(monthSegments.map(s => s.year)));
     const yearStats: Record<number, { publicHolidays: any[] }> = {};
     uniqueYears.forEach(year => {
@@ -410,7 +404,6 @@ export default function ReportsPage() {
                 const dailyHours = activeContractsOnDay.reduce((sum, c) => sum + c.weeklyHours, 0) / 5;
                 totalAssigned += dailyHours;
 
-                // Consumption model: check for approved leave
                 const approvedLeaveRequest = holidayRequests.find(req => 
                     req.userId === member.id && 
                     req.status === 'Approved' &&
@@ -421,10 +414,8 @@ export default function ReportsPage() {
                 if (approvedLeaveRequest) {
                     totalLeave += dailyHours;
                     
-                    // Inject virtual "Leave" project into aggregators for Project/Task/Detailed views
                     const leaveType = approvedLeaveRequest.type;
 
-                    // 1. Add to detailedAgg
                     if (detailedAgg[member.id]) {
                         let leaveProject = detailedAgg[member.id].projects.find(p => p.name === 'Leave');
                         if (!leaveProject) {
@@ -441,12 +432,10 @@ export default function ReportsPage() {
                         leaveTask.loggedHours += dailyHours;
                     }
 
-                    // 2. Add to projectAgg
                     const projectKey = `${member.id}__Leave`;
                     if (!projectAgg[projectKey]) projectAgg[projectKey] = { key: projectKey, member, projectName: 'Leave', loggedHours: 0 };
                     projectAgg[projectKey].loggedHours += dailyHours;
 
-                    // 3. Add to taskAgg
                     const taskKey = `${member.id}__${leaveType}`;
                     if (!taskAgg[taskKey]) taskAgg[taskKey] = { key: taskKey, member, taskName: leaveType, loggedHours: 0 };
                     taskAgg[taskKey].loggedHours += dailyHours;
@@ -465,7 +454,7 @@ export default function ReportsPage() {
         const remainingHours = parseFloat((expectedHours - loggedHours).toFixed(2));
         
         if (detailedAgg[member.id]) {
-            detailedAgg[member.id] = { ...detailedAgg[member.id], assignedHours, leaveHours, expectedHours, loggedHours, remainingHours };
+            detailedAgg[member.id] = { ...detailedAgg[member.id], assignedHours, leaveHours, expectedHours, loggedHours, remainingHours, inOfficePercentage };
         }
 
         return { ...member, assignedHours, leaveHours, expectedHours, loggedHours, remainingHours, inOfficePercentage };
@@ -560,7 +549,7 @@ export default function ReportsPage() {
           dataForExport.push([{ v: title }]);
           dataForExport.push([]);
           
-          const headers = [t('member'), t('role'), t('team'), t('assignedHours'), t('leaveHours'), t('expected'), t('logged'), t('remaining')];
+          const headers = [t('member'), t('role'), t('team'), t('assignedHours'), t('leaveHours'), t('expected'), t('logged'), t('remaining'), 'In Office %'];
           dataForExport.push(headers.map(h => ({ v: h, s: headerStyle })));
 
           reports.detailedReport.forEach(userRow => {
@@ -572,21 +561,22 @@ export default function ReportsPage() {
                   { v: userRow.leaveHours, t: 'n', s: {...userStyle, ...numberFormat} },
                   { v: userRow.expectedHours, t: 'n', s: {...userStyle, ...numberFormat} }, 
                   { v: userRow.loggedHours, t: 'n', s: {...userStyle, ...numberFormat} },
-                  { v: userRow.remainingHours, t: 'n', s: { ...userStyle.font, font: { ...userStyle.font, color: { rgb: userRow.remainingHours < 0 ? "008000" : "000000" } } } }
+                  { v: userRow.remainingHours, t: 'n', s: { ...userStyle.font, font: { ...userStyle.font, color: { rgb: userRow.remainingHours < 0 ? "008000" : "000000" } } } },
+                  { v: `${userRow.inOfficePercentage.toFixed(2)} %`, s: userStyle, t: 's' }
               ];
               dataForExport.push(userRowData);
               
               userRow.projects.forEach(projectRow => {
                   const projectRowData = [
                       { v: `    Project- ${projectRow.name}`, s: projectStyle }, { v: '', s: projectStyle }, { v: '', s: projectStyle }, { v: '', s: projectStyle }, { v: '', s: projectStyle }, { v: '', s: projectStyle },
-                      { v: projectRow.loggedHours, t: 'n', s: { ...projectStyle, ...numberFormat } }, { v: '', s: projectStyle }
+                      { v: projectRow.loggedHours, t: 'n', s: { ...projectStyle, ...numberFormat } }, { v: '', s: projectStyle }, { v: '', s: projectStyle }
                   ];
                   dataForExport.push(projectRowData);
                 
                   projectRow.tasks.forEach(taskRow => {
                       const taskRowData = [
                           { v: `        Task- ${taskRow.name}`, s: taskStyle }, { v: '', s: taskStyle }, { v: '', s: taskStyle }, { v: '', s: taskStyle }, { v: '', s: taskStyle }, { v: '', s: taskStyle },
-                          { v: taskRow.loggedHours, t: 'n', s: { ...taskStyle, ...numberFormat } }, { v: '', s: taskStyle }
+                          { v: taskRow.loggedHours, t: 'n', s: { ...taskStyle, ...numberFormat } }, { v: '', s: taskStyle }, { v: '', s: taskStyle }
                       ];
                       dataForExport.push(taskRowData);
                   });
@@ -627,7 +617,7 @@ export default function ReportsPage() {
                       const isNumber = typeof cell === 'number';
                       const isPercentageColumn = headers[index] === 'In Office %';
                       if (isPercentageColumn) {
-                          return { v: `${cell.toFixed(2)} %`, s: percentageCellStyle, t: 's' };
+                          return { v: `${Number(cell).toFixed(2)} %`, s: percentageCellStyle, t: 's' };
                       }
                       return {
                           v: cell,
@@ -926,11 +916,6 @@ export default function ReportsPage() {
                       </TableHeader>
                       <TableBody>
                         {sortedConsolidatedData.map(member => {
-                          const activeContractsOnDay = member.contracts.filter(c => {
-                              const contractStart = parseISO(c.startDate);
-                              const contractEnd = c.endDate ? parseISO(c.endDate) : endOfYear(periodEnd);
-                              return isWithinInterval(periodStart, { start: contractStart, end: contractEnd });
-                          });
                           return (
                           <TableRow key={member.id}>
                             <TableCell>
@@ -949,7 +934,7 @@ export default function ReportsPage() {
                             <TableCell className="text-right font-mono">{member.inOfficePercentage.toFixed(2)}%</TableCell>
                           </TableRow>
                         )})}
-                        {reports.consolidatedData.length === 0 && (<TableRow><TableCell colSpan={8} className="text-center h-24">{t('noTeamMembers')}</TableCell></TableRow>)}
+                        {reports.consolidatedData.length === 0 && (<TableRow><TableCell colSpan={9} className="text-center h-24">{t('noTeamMembers')}</TableCell></TableRow>)}
                       </TableBody>
                     </Table>
                   )}

@@ -112,7 +112,7 @@ const DayContent: React.FC<DayContentProps> = (props) => {
                     {holidayName}
                 </span>
             ) : personalLeave ? (
-                <span className={cn("text-[10px] font-semibold mt-auto", personalLeave.type === 'Sick Leave' ? 'text-orange-600' : 'text-yellow-700')}>
+                <span className={cn("text-[10px] font-semibold text-yellow-700 truncate px-1 mt-auto", personalLeave.type === 'Sick Leave' && "text-orange-600")}>
                     {personalLeave.type}
                 </span>
             ) : <span className="h-[15px]" />
@@ -262,7 +262,6 @@ export function IndividualReport() {
             const dailyContractHours = activeContractsOnDay.reduce((sum, c) => sum + c.weeklyHours, 0) / 5;
             totalAssigned += dailyContractHours;
 
-            // Check for approved consumption-based leave
             const hasApprovedLeave = holidayRequests.some(req => 
                 req.userId === selectedUser.id && 
                 req.status === 'Approved' &&
@@ -405,7 +404,6 @@ export function IndividualReport() {
             };
         });
 
-        // Combine and sort by date
         const combinedEntries = [...workEntries, ...leaveEntries].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         
         const loggedHours = round(workEntries.reduce((acc, e) => acc + e.duration, 0));
@@ -623,7 +621,7 @@ export function IndividualReport() {
                   className="p-0"
                   classNames={{
                       row: "flex w-full mt-0",
-                      cell: "flex-1 text-center text-sm p-0 m-0 border h-[50px]", 
+                      cell: "flex-1 text-center text-sm p-0 m-0 border h-20", 
                       head_row: "flex",
                       head_cell: "text-muted-foreground rounded-md w-full font-normal text-[0.8rem]",
                       day: "h-full w-full p-0",
