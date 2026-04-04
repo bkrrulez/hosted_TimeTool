@@ -209,7 +209,7 @@ export function IndividualReport() {
 
         const monthsList = months.filter(m => m.value >= startMonthForYear && m.value <= endMonthForYear);
     
-        return { availableYears: yearsList, availableMonths: monthsList, minContractDate: minDateVal, maxContractDate: maxDateVal };
+        return { availableYears: yearsList, availableMonths: monthsList, minContractDate: minDateVal, maxContractDate: maxContractDate };
     }, [selectedUser, selectedDate]);
 
 
@@ -340,6 +340,7 @@ export function IndividualReport() {
         
         let totalAssigned = 0;
         let totalLeave = 0;
+        const leaveEntries: any[] = [];
 
         for (let d = new Date(periodStart); d <= periodEnd; d = addDays(d, 1)) {
             const dayOfWeek = getDay(d);
@@ -365,15 +366,22 @@ export function IndividualReport() {
                 const dailyHours = activeContracts.reduce((sum, c) => sum + c.weeklyHours, 0) / 5;
                 totalAssigned += dailyHours;
 
-                const hasApprovedLeave = holidayRequests.some(req => 
+                const approvedLeaveRequest = holidayRequests.find(req => 
                     req.userId === selectedUser.id && 
                     req.status === 'Approved' &&
                     (req.type === 'Vacation' || req.type === 'Sick Leave') &&
                     isWithinInterval(d, { start: parseISO(req.startDate), end: parseISO(req.endDate) })
                 );
 
-                if (hasApprovedLeave) {
+                if (approvedLeaveRequest) {
                     totalLeave += dailyHours;
+                    leaveEntries.push({
+                        date: format(d, 'yyyy-MM-dd'),
+                        project: 'Leave',
+                        task: approvedLeaveRequest.type,
+                        duration: dailyHours,
+                        remarks: 'Approved Leave'
+                    });
                 }
             }
         }
@@ -383,12 +391,24 @@ export function IndividualReport() {
         const leaveHours = round(totalLeave);
         const expectedHours = round(assignedHours - leaveHours);
         
-        const userEntriesForRange = timeEntries.filter(entry => 
+        const workEntries = timeEntries.filter(entry => 
             entry.userId === selectedUser.id && 
             isWithinInterval(parseISO(entry.date), { start: periodStart, end: periodEnd })
-        ).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        ).map(e => {
+            const [p, ...tParts] = e.task.split(' - ');
+            return {
+                date: e.date,
+                project: p,
+                task: tParts.join(' - '),
+                duration: e.duration,
+                remarks: e.remarks || ''
+            };
+        });
+
+        // Combine and sort by date
+        const combinedEntries = [...workEntries, ...leaveEntries].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         
-        const loggedHours = round(userEntriesForRange.reduce((acc, e) => acc + e.duration, 0));
+        const loggedHours = round(workEntries.reduce((acc, e) => acc + e.duration, 0));
         const remainingHours = round(expectedHours - loggedHours);
 
         const aoa: any[][] = [];
@@ -414,13 +434,11 @@ export function IndividualReport() {
         const timeEntryHeaders = [t('date'), t('project'), t('task'), '', '', '', t('loggedHours'), '', 'Remarks'];
         aoa.push(timeEntryHeaders.map(h => ({v: h, s: headerStyle})));
 
-        userEntriesForRange.forEach(entry => {
-            const [project, ...taskParts] = entry.task.split(' - ');
-            const task = taskParts.join(' - ');
+        combinedEntries.forEach(entry => {
             aoa.push([
                 {v: format(parseISO(entry.date), 'dd/MM/yyyy'), s: dataRowStyle },
-                {v: project, s: dataRowStyle },
-                {v: task, s: dataRowStyle },
+                {v: entry.project, s: dataRowStyle },
+                {v: entry.task, s: dataRowStyle },
                 {v: '', s: dataRowStyle },
                 {v: '', s: dataRowStyle },
                 {v: '', s: dataRowStyle },
@@ -605,10 +623,10 @@ export function IndividualReport() {
                   className="p-0"
                   classNames={{
                       row: "flex w-full mt-0",
-                      cell: "flex-1 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                      cell: "flex-1 text-center text-sm p-0 m-0 border h-[50px]", // Reduced h-20 to h-12 for better visual balance
                       head_row: "flex",
                       head_cell: "text-muted-foreground rounded-md w-full font-normal text-[0.8rem]",
-                      day: "h-20 w-full text-base p-0",
+                      day: "h-full w-full text-base p-0",
                       months: "w-full",
                       month: "w-full space-y-4",
                       caption_label: "text-lg font-bold"

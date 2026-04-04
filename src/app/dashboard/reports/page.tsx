@@ -411,15 +411,45 @@ export default function ReportsPage() {
                 totalAssigned += dailyHours;
 
                 // Consumption model: check for approved leave
-                const hasApprovedLeave = holidayRequests.some(req => 
+                const approvedLeaveRequest = holidayRequests.find(req => 
                     req.userId === member.id && 
                     req.status === 'Approved' &&
                     (req.type === 'Vacation' || req.type === 'Sick Leave') &&
                     isWithinInterval(d, { start: parseISO(req.startDate), end: parseISO(req.endDate) })
                 );
 
-                if (hasApprovedLeave) {
+                if (approvedLeaveRequest) {
                     totalLeave += dailyHours;
+                    
+                    // Inject virtual "Leave" project into aggregators for Project/Task/Detailed views
+                    const leaveType = approvedLeaveRequest.type;
+
+                    // 1. Add to detailedAgg
+                    if (detailedAgg[member.id]) {
+                        let leaveProject = detailedAgg[member.id].projects.find(p => p.name === 'Leave');
+                        if (!leaveProject) {
+                            leaveProject = { name: 'Leave', loggedHours: 0, tasks: [] };
+                            detailedAgg[member.id].projects.push(leaveProject);
+                        }
+                        leaveProject.loggedHours += dailyHours;
+
+                        let leaveTask = leaveProject.tasks.find(t => t.name === leaveType);
+                        if (!leaveTask) {
+                            leaveTask = { name: leaveType, loggedHours: 0 };
+                            leaveProject.tasks.push(leaveTask);
+                        }
+                        leaveTask.loggedHours += dailyHours;
+                    }
+
+                    // 2. Add to projectAgg
+                    const projectKey = `${member.id}__Leave`;
+                    if (!projectAgg[projectKey]) projectAgg[projectKey] = { key: projectKey, member, projectName: 'Leave', loggedHours: 0 };
+                    projectAgg[projectKey].loggedHours += dailyHours;
+
+                    // 3. Add to taskAgg
+                    const taskKey = `${member.id}__${leaveType}`;
+                    if (!taskAgg[taskKey]) taskAgg[taskKey] = { key: taskKey, member, taskName: leaveType, loggedHours: 0 };
+                    taskAgg[taskKey].loggedHours += dailyHours;
                 }
             }
         }
