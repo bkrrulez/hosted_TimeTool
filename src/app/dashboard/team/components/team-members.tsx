@@ -2,14 +2,14 @@
 'use client';
 
 import * as React from 'react';
-import { format, min as minDate, max as maxDate, isWithinInterval } from "date-fns";
+import { format, min as minDate, max as maxDate, isWithinInterval, startOfDay, isAfter, parseISO } from "date-fns";
 import { MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type User } from "@/lib/types";
 import { EditMemberDialog, type EditMemberFormValues } from "./edit-contract-dialog";
@@ -21,7 +21,7 @@ import { useTeams } from "../../contexts/TeamsContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { useSystemLog } from '../../contexts/SystemLogContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { MultiSelect } from '@/components/ui/multi-select';
+import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-select';
 
 interface TeamMembersProps {
     onAddMemberClick: () => void;
@@ -39,6 +39,7 @@ export function TeamMembers({ onAddMemberClick, onExportClick }: TeamMembersProp
     const [changingPasswordUser, setChangingPasswordUser] = React.useState<User | null>(null);
     const [isSavingPassword, setIsSavingPassword] = React.useState(false);
     const [selectedTeams, setSelectedTeams] = React.useState<string[]>(['all']);
+    const [selectedStatuses, setSelectedStatuses] = React.useState<string[]>(['all-status']);
     
     const teamOptions = React.useMemo(() => {
         return [
@@ -48,28 +49,64 @@ export function TeamMembers({ onAddMemberClick, onExportClick }: TeamMembersProp
         ];
     }, [teams]);
 
+    const statusOptions: MultiSelectOption[] = [
+        { value: 'all-status', label: 'All Status' },
+        { value: 'Upcoming', label: 'Upcoming' },
+        { value: 'Active', label: 'Active' },
+        { value: 'Expired', label: 'Expired' },
+    ];
+
     const handleTeamSelectionChange = (newSelection: string[]) => {
-      // If the new selection is empty, revert to "all"
       if (newSelection.length === 0) {
         setSelectedTeams(['all']);
         return;
       }
-      
-      // If "All" was just selected, it should be the only item.
       if (newSelection.length > 1 && newSelection[newSelection.length - 1] === 'all') {
         setSelectedTeams(['all']);
       } 
-      // If "All" is in the selection but it wasn't the last one added,
-      // it means something else was added, so remove "All".
       else if (newSelection.length > 1 && newSelection.includes('all')) {
         setSelectedTeams(newSelection.filter(s => s !== 'all'));
       } 
-      // Otherwise, just update with the new selection.
       else {
         setSelectedTeams(newSelection);
       }
     };
 
+    const handleStatusSelectionChange = (newSelection: string[]) => {
+      if (newSelection.length === 0) {
+        setSelectedStatuses(['all-status']);
+        return;
+      }
+      if (newSelection.length > 1 && newSelection[newSelection.length - 1] === 'all-status') {
+        setSelectedStatuses(['all-status']);
+      } 
+      else if (newSelection.length > 1 && newSelection.includes('all-status')) {
+        setSelectedStatuses(newSelection.filter(s => s !== 'all-status'));
+      } 
+      else {
+        setSelectedStatuses(newSelection);
+      }
+    };
+
+    const getMemberStatus = (member: User): string => {
+        const today = startOfDay(new Date());
+        const contracts = member.contracts || [];
+        
+        if (contracts.length === 0) return 'Expired';
+
+        const hasActive = contracts.some(c => {
+            const start = parseISO(c.startDate);
+            const end = c.endDate ? parseISO(c.endDate) : new Date('9999-12-31');
+            return isWithinInterval(today, { start, end });
+        });
+
+        if (hasActive) return 'Active';
+
+        const hasUpcoming = contracts.some(c => isAfter(parseISO(c.startDate), today));
+        if (hasUpcoming) return 'Upcoming';
+
+        return 'Expired';
+    };
 
     const visibleMembers = React.useMemo(() => {
         let members: User[];
@@ -83,7 +120,7 @@ export function TeamMembers({ onAddMemberClick, onExportClick }: TeamMembersProp
 
         if (!selectedTeams.includes('all')) {
              members = members.filter(member => {
-                if (selectedTeams.length === 0) return true; // Show all if nothing is selected
+                if (selectedTeams.length === 0) return true;
                 let matches = false;
                 if (selectedTeams.includes('none') && !member.teamId) {
                     matches = true;
@@ -92,6 +129,13 @@ export function TeamMembers({ onAddMemberClick, onExportClick }: TeamMembersProp
                     matches = true;
                 }
                 return matches;
+            });
+        }
+
+        if (!selectedStatuses.includes('all-status')) {
+            members = members.filter(member => {
+                const status = getMemberStatus(member);
+                return selectedStatuses.includes(status);
             });
         }
         
@@ -104,7 +148,7 @@ export function TeamMembers({ onAddMemberClick, onExportClick }: TeamMembersProp
         });
         
         return uniqueMembers;
-    }, [teamMembers, currentUser, selectedTeams]);
+    }, [teamMembers, currentUser, selectedTeams, selectedStatuses]);
     
     const handleSaveDetails = async (originalUser: User, updatedData: EditMemberFormValues) => {
         if (!editingUser) return;
@@ -185,15 +229,13 @@ export function TeamMembers({ onAddMemberClick, onExportClick }: TeamMembersProp
         const now = new Date();
         const activeContracts = member.contracts.filter(c => {
             const start = new Date(c.startDate);
-            // If end date is null, it's an ongoing contract, so it's active
             const end = c.endDate ? new Date(c.endDate) : new Date('9999-12-31');
             return isWithinInterval(now, { start, end });
         });
 
         if (activeContracts.length === 0) {
-            // If no active contracts, find the most recent one to display as fallback
             const sortedContracts = [...member.contracts].sort((a,b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
-            const mostRecent = sortedContracts[0] || member.contract; // Fallback to primary if no contracts at all
+            const mostRecent = sortedContracts[0] || member.contract;
             return {
                 weeklyHours: mostRecent.weeklyHours,
                 startDate: mostRecent.startDate,
@@ -223,6 +265,13 @@ export function TeamMembers({ onAddMemberClick, onExportClick }: TeamMembersProp
                 <CardDescription>{t('teamMembersTabDesc')}</CardDescription>
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto">
+                 <MultiSelect
+                    options={statusOptions}
+                    selected={selectedStatuses}
+                    onChange={handleStatusSelectionChange}
+                    placeholder="Filter by status..."
+                    className="w-full sm:w-[180px]"
+                 />
                  <MultiSelect
                     options={teamOptions}
                     selected={selectedTeams}
