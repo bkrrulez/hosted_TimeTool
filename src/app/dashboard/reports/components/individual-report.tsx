@@ -301,7 +301,7 @@ export function IndividualReport() {
         const start = parseISO(req.startDate);
         const end = parseISO(req.endDate);
         const dates: { date: Date; type: "Vacation" | "Sick Leave" }[] = [];
-        for (let dt = start; dt <= end; dt = addDays(d, 1)) {
+        for (let dt = start; dt <= end; dt = addDays(dt, 1)) {
             if (isSameMonth(dt, selectedDate)) {
                 dates.push({ date: new Date(dt), type: req.type });
             }
@@ -623,7 +623,7 @@ export function IndividualReport() {
                   className="p-0"
                   classNames={{
                       row: "flex w-full mt-0",
-                      cell: "flex-1 text-center text-sm p-0 m-0 border h-[50px]", // Reduced h-20 to h-12 for better visual balance
+                      cell: "flex-1 text-center text-sm p-0 m-0 border h-[50px]", 
                       head_row: "flex",
                       head_cell: "text-muted-foreground rounded-md w-full font-normal text-[0.8rem]",
                       day: "h-full w-full text-base p-0",
