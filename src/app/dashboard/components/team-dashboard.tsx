@@ -16,7 +16,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 export function TeamDashboard() {
   const { timeEntries } = useTimeTracking();
   const { teamMembers } = useMembers();
-  const { publicHolidays, customHolidays, annualLeaveAllowance } = useHolidays();
+  const { publicHolidays, customHolidays, holidayRequests, annualLeaveAllowance } = useHolidays();
   const { currentUser } = useAuth();
   const { t } = useLanguage();
 
@@ -35,24 +35,9 @@ export function TeamDashboard() {
     const periodStart = startOfMonth(today);
     const selectedYear = getYear(today);
 
-    // --- Standardized Leave Calculation ---
-    const yearStart = startOfYear(new Date(selectedYear, 0, 1));
     const yearEndForLeave = endOfYear(new Date(selectedYear, 11, 31));
-    
-    let standardWorkingDaysInYear = 0;
     const publicHolidaysInYear = publicHolidays.filter(h => getYear(parseISO(h.date)) === selectedYear);
 
-    for (let d = new Date(yearStart); d <= yearEndForLeave; d = addDays(d, 1)) {
-        const dayOfWeek = getDay(d);
-        if (dayOfWeek === 0 || dayOfWeek === 6) continue;
-        const isPublicHoliday = publicHolidaysInYear.some(h => isSameDay(parseISO(h.date), d));
-        if (isPublicHoliday) continue;
-        standardWorkingDaysInYear++;
-    }
-
-    const dailyLeaveCredit = standardWorkingDaysInYear > 0 ? annualLeaveAllowance / standardWorkingDaysInYear : 0;
-    // --- End Standardized Leave Calculation ---
-    
     return visibleMembers.map(member => {
       const userHolidaysInYear = publicHolidaysInYear
         .concat(customHolidays.filter(h => {
@@ -68,9 +53,9 @@ export function TeamDashboard() {
       });
       const loggedHours = userTimeEntries.reduce((acc, entry) => acc + entry.duration, 0);
 
-      // --- Performance Calculation (Overtime/Deficit so far) ---
-      let assignedHoursSoFar = 0;
-      let workingDaysSoFar = 0;
+      // Performance Calculation (Consumption Model)
+      let totalAssignedSoFar = 0;
+      let totalLeaveSoFar = 0;
 
       for (let d = new Date(periodStart); d <= today; d = addDays(d, 1)) {
           const dayOfWeek = getDay(d);
@@ -86,27 +71,34 @@ export function TeamDashboard() {
           });
 
           if (activeContractsOnDay.length > 0) {
-              workingDaysSoFar++;
               const dailyHours = activeContractsOnDay.reduce((sum, c) => sum + c.weeklyHours, 0) / 5;
-              assignedHoursSoFar += dailyHours;
+              totalAssignedSoFar += dailyHours;
+
+              // Check for approved leave
+              const hasApprovedLeave = holidayRequests.some(req => 
+                  req.userId === member.id && 
+                  req.status === 'Approved' &&
+                  (req.type === 'Vacation' || req.type === 'Sick Leave') &&
+                  isWithinInterval(d, { start: parseISO(req.startDate), end: parseISO(req.endDate) })
+              );
+
+              if (hasApprovedLeave) {
+                  totalLeaveSoFar += dailyHours;
+              }
           }
       }
       
-      const leaveDaysSoFar = workingDaysSoFar * dailyLeaveCredit;
-      const avgDailyHoursSoFar = workingDaysSoFar > 0 ? assignedHoursSoFar / workingDaysSoFar : 0;
-      const leaveHoursSoFar = leaveDaysSoFar * avgDailyHoursSoFar;
-      const expectedHoursSoFar = assignedHoursSoFar - leaveHoursSoFar;
-
+      const expectedHoursSoFar = totalAssignedSoFar - totalLeaveSoFar;
       const performance = loggedHours - expectedHoursSoFar;
 
       return {
         ...member,
         totalHours: loggedHours,
-        expectedHours: expectedHoursSoFar, // Use expected hours "so far" for consistency
+        expectedHours: expectedHoursSoFar,
         performance,
       }
     });
-  }, [timeEntries, teamMembers, publicHolidays, customHolidays, currentUser, annualLeaveAllowance]);
+  }, [timeEntries, teamMembers, publicHolidays, customHolidays, holidayRequests, currentUser, annualLeaveAllowance]);
 
   const usersWithOvertime = teamPerformance
     .filter(u => u.performance > 0)

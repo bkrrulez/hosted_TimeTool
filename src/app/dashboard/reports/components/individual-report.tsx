@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -193,7 +194,7 @@ export function IndividualReport() {
         });
 
         if (contractsInYear.length === 0) {
-             return { availableYears: yearsList, availableMonths: [], minContractDate: minDateVal, maxContractDate: maxDateVal };
+             return { availableYears: yearsList, availableMonths: [], minContractDate: minDateVal, maxContractDate: maxContractDate };
         }
 
         const startMonthsInYear = contractsInYear.map(c => 
@@ -223,9 +224,6 @@ export function IndividualReport() {
     const selectedYear = selectedDate.getFullYear();
     const yearEnd = endOfYear(selectedDate);
     const publicHolidaysInYear = publicHolidays.filter(h => getYear(parseISO(h.date)) === selectedYear);
-
-    const standardWorkDaysInYear = 261;
-    const dailyLeaveCredit = annualLeaveAllowance / standardWorkDaysInYear;
     
     const userHolidaysInYear = publicHolidaysInYear
         .concat(customHolidays.filter(h => {
@@ -254,9 +252,6 @@ export function IndividualReport() {
             continue;
         }
 
-        const isVacationDay = holidayRequests.some(req => req.userId === selectedUser.id && req.status === 'Approved' && req.type === 'Vacation' && isWithinInterval(d, { start: parseISO(req.startDate), end: parseISO(req.endDate) }));
-        if (isVacationDay) continue;
-
         const activeContractsOnDay = selectedUser.contracts.filter(c => {
             const contractStart = parseISO(c.startDate);
             const contractEnd = c.endDate ? parseISO(c.endDate) : yearEnd;
@@ -265,12 +260,21 @@ export function IndividualReport() {
         
         if (activeContractsOnDay.length > 0) {
             const dailyContractHours = activeContractsOnDay.reduce((sum, c) => sum + c.weeklyHours, 0) / 5;
-            const leaveHoursForDay = dailyLeaveCredit * dailyContractHours;
-            const expected = dailyContractHours - leaveHoursForDay;
+            totalAssigned += dailyContractHours;
+
+            // Check for approved consumption-based leave
+            const hasApprovedLeave = holidayRequests.some(req => 
+                req.userId === selectedUser.id && 
+                req.status === 'Approved' &&
+                (req.type === 'Vacation' || req.type === 'Sick Leave') &&
+                isWithinInterval(d, { start: parseISO(req.startDate), end: parseISO(req.endDate) })
+            );
+
+            const leaveForDay = hasApprovedLeave ? dailyContractHours : 0;
+            const expected = dailyContractHours - leaveForDay;
             
             dailyExpected[dayOfMonth] = expected;
-            totalAssigned += dailyContractHours;
-            totalLeave += leaveHoursForDay;
+            totalLeave += leaveForDay;
             totalExpected += expected;
         }
     }
@@ -334,64 +338,45 @@ export function IndividualReport() {
         const userRowStyle = { fill: { fgColor: { rgb: "DDEBF7" } }, border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } } };
         const dataRowStyle = { border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }, alignment: { wrapText: true } };
         
-        // --- CALCULATION LOGIC (Segmented for Accuracy) ---
-        const monthSegments: { start: Date; end: Date; year: number }[] = [];
-        let current = new Date(periodStart);
-        while (current <= periodEnd) {
-            const segStart = maxDate([current, startOfMonth(current)]);
-            const segEnd = minDate([periodEnd, endOfMonth(current)]);
-            monthSegments.push({ start: segStart, end: segEnd, year: getYear(current) });
-            current = startOfMonth(addDays(endOfMonth(current), 1));
-        }
-
-        const yearStats: Record<number, { dailyLeaveCredit: number; phInYear: any[] }> = {};
-        const uniqueYears = Array.from(new Set(monthSegments.map(s => s.year)));
-        uniqueYears.forEach(year => {
-            const yStart = startOfYear(new Date(year, 0, 1));
-            const yEnd = endOfYear(new Date(year, 0, 1));
-            const phInYear = publicHolidays.filter(h => getYear(parseISO(h.date)) === year);
-            let standardWorkDays = 0;
-            for (let d = new Date(yStart); d <= yEnd; d = addDays(d, 1)) {
-                if (getDay(d) === 0 || getDay(d) === 6) continue;
-                if (phInYear.some(h => isSameDay(parseISO(h.date), d))) continue;
-                standardWorkDays++;
-            }
-            yearStats[year] = { dailyLeaveCredit: standardWorkDays > 0 ? annualLeaveAllowance / standardWorkDays : 0, phInYear };
-        });
-
         let totalAssigned = 0;
         let totalLeave = 0;
 
-        monthSegments.forEach(seg => {
-            const stats = yearStats[seg.year];
-            const holidays = stats.phInYear.concat(customHolidays.filter(h => {
-                if (getYear(parseISO(h.date)) !== seg.year) return false;
+        for (let d = new Date(periodStart); d <= periodEnd; d = addDays(d, 1)) {
+            const dayOfWeek = getDay(d);
+            if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+
+            const year = getYear(d);
+            const phInYear = publicHolidays.filter(h => getYear(parseISO(h.date)) === year);
+            const holidays = phInYear.concat(customHolidays.filter(h => {
+                if (getYear(parseISO(h.date)) !== year) return false;
                 const applies = (h.appliesTo === 'all-members') || (h.appliesTo === 'all-teams' && !!selectedUser.teamId) || (h.appliesTo === selectedUser.teamId);
                 return applies;
             }));
 
-            let assignedInSeg = 0;
-            let workingDaysInSeg = 0;
+            if (holidays.some(h => isSameDay(parseISO(h.date), d))) continue;
 
-            for (let d = new Date(seg.start); d <= seg.end; d = addDays(d, 1)) {
-                if (getDay(d) === 0 || getDay(d) === 6) continue;
-                if (holidays.some(h => isSameDay(parseISO(h.date), d))) continue;
-                if (holidayRequests.some(req => req.userId === selectedUser.id && req.status === 'Approved' && req.type === 'Vacation' && isWithinInterval(d, { start: parseISO(req.startDate), end: parseISO(req.endDate) }))) continue;
+            const activeContracts = selectedUser.contracts.filter(c => {
+                const cStart = parseISO(c.startDate);
+                const cEnd = c.endDate ? parseISO(c.endDate) : endOfYear(d);
+                return isWithinInterval(d, { start: cStart, end: cEnd });
+            });
 
-                const activeContracts = selectedUser.contracts.filter(c => {
-                    const cStart = parseISO(c.startDate);
-                    const cEnd = c.endDate ? parseISO(c.endDate) : endOfYear(new Date(seg.year, 0, 1));
-                    return isWithinInterval(d, { start: cStart, end: cEnd });
-                });
+            if (activeContracts.length > 0) {
+                const dailyHours = activeContracts.reduce((sum, c) => sum + c.weeklyHours, 0) / 5;
+                totalAssigned += dailyHours;
 
-                if (activeContracts.length > 0) {
-                    workingDaysInSeg++;
-                    assignedInSeg += activeContracts.reduce((sum, c) => sum + c.weeklyHours, 0) / 5;
+                const hasApprovedLeave = holidayRequests.some(req => 
+                    req.userId === selectedUser.id && 
+                    req.status === 'Approved' &&
+                    (req.type === 'Vacation' || req.type === 'Sick Leave') &&
+                    isWithinInterval(d, { start: parseISO(req.startDate), end: parseISO(req.endDate) })
+                );
+
+                if (hasApprovedLeave) {
+                    totalLeave += dailyHours;
                 }
             }
-            totalAssigned += assignedInSeg;
-            totalLeave += workingDaysInSeg * stats.dailyLeaveCredit * (workingDaysInSeg > 0 ? assignedInSeg / workingDaysInSeg : 0);
-        });
+        }
 
         const round = (num: number) => parseFloat(num.toFixed(2));
         const assignedHours = round(totalAssigned);

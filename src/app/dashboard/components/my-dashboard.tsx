@@ -34,7 +34,7 @@ export function MyDashboard() {
   const [selectedDayEntries, setSelectedDayEntries] = React.useState<TimeEntry[]>([]);
   const [selectedDayForDialog, setSelectedDayForDialog] = React.useState<Date>(new Date());
   
-  if (!currentUser) return null; // Should not happen if AuthProvider works correctly
+  if (!currentUser) return null;
 
   const calculateDurationInWorkdays = React.useCallback((startDate: Date, endDate: Date, userId: string): number => {
     let workdays = 0;
@@ -63,7 +63,6 @@ export function MyDashboard() {
 
   const getProratedAllowance = React.useCallback((user: User) => {
     const today = new Date();
-    const currentYear = today.getFullYear();
     const yearStart = startOfYear(today);
     const yearEnd = endOfYear(today);
 
@@ -89,24 +88,7 @@ export function MyDashboard() {
     const periodStart = startOfMonth(today);
     const periodEnd = endOfMonth(today);
 
-    // --- Start: Accurate Calculation Logic from Reports ---
     const publicHolidaysInYear = publicHolidays.filter(h => getYear(parseISO(h.date)) === currentYear);
-    
-    // Determine a standard number of workdays in the year for proration
-    const yearStart = startOfYear(new Date(currentYear, 0, 1));
-    const yearEnd = endOfYear(new Date(currentYear, 11, 31));
-    let standardWorkingDaysInYear = 0;
-    for (let d = new Date(yearStart); d <= yearEnd; d = addDays(d,1)) {
-        const dayOfWeek = getDay(d);
-        if (dayOfWeek === 0 || dayOfWeek === 6) continue;
-        const isPublicHoliday = publicHolidaysInYear.some(h => isSameDay(parseISO(h.date), d));
-        if (isPublicHoliday) continue;
-        standardWorkingDaysInYear++;
-    }
-
-    const dailyLeaveCredit = standardWorkingDaysInYear > 0 ? annualLeaveAllowance / standardWorkingDaysInYear : 0;
-    
-    // Now, calculate for the specific user and period
     const userHolidaysInYear = publicHolidaysInYear.concat(
       customHolidays.filter(h => {
         if (getYear(parseISO(h.date)) !== currentYear) return false;
@@ -115,10 +97,10 @@ export function MyDashboard() {
       })
     );
 
-    let assignedHoursInPeriod = 0;
-    let workingDaysInPeriod = 0;
+    let totalAssignedSoFar = 0;
+    let totalLeaveSoFar = 0;
 
-    for (let d = new Date(periodStart); d <= periodEnd; d = addDays(d, 1)) {
+    for (let d = new Date(periodStart); d <= today; d = addDays(d, 1)) {
         const dayOfWeek = getDay(d);
         if (dayOfWeek === 0 || dayOfWeek === 6) continue;
         
@@ -127,23 +109,29 @@ export function MyDashboard() {
         
         const activeContractsOnDay = currentUser.contracts.filter(c => {
             const contractStart = parseISO(c.startDate);
-            const contractEnd = c.endDate ? parseISO(c.endDate) : yearEnd;
+            const contractEnd = c.endDate ? parseISO(c.endDate) : endOfYear(new Date(currentYear, 11, 31));
             return isWithinInterval(d, { start: contractStart, end: contractEnd });
         });
 
         if (activeContractsOnDay.length > 0) {
-            workingDaysInPeriod++;
             const dailyHours = activeContractsOnDay.reduce((sum, c) => sum + c.weeklyHours, 0) / 5;
-            assignedHoursInPeriod += dailyHours;
+            totalAssignedSoFar += dailyHours;
+
+            // Consumption model: check for approved leave
+            const hasApprovedLeave = holidayRequests.some(req => 
+                req.userId === currentUser.id && 
+                req.status === 'Approved' &&
+                (req.type === 'Vacation' || req.type === 'Sick Leave') &&
+                isWithinInterval(d, { start: parseISO(req.startDate), end: parseISO(req.endDate) })
+            );
+
+            if (hasApprovedLeave) {
+                totalLeaveSoFar += dailyHours;
+            }
         }
     }
-    const assignedHours = parseFloat(assignedHoursInPeriod.toFixed(2));
     
-    const avgDailyHoursInPeriod = workingDaysInPeriod > 0 ? assignedHours / workingDaysInPeriod : 0;
-    const leaveDaysInPeriod = workingDaysInPeriod * dailyLeaveCredit;
-    const leaveHours = parseFloat((leaveDaysInPeriod * avgDailyHoursInPeriod).toFixed(2));
-    
-    const expectedHours = parseFloat((assignedHours - leaveHours).toFixed(2));
+    const expectedHoursSoFar = parseFloat((totalAssignedSoFar - totalLeaveSoFar).toFixed(2));
 
     // Calculate Logged Hours for the month so far
     const userTimeEntries = timeEntries.filter(entry => {
@@ -151,35 +139,9 @@ export function MyDashboard() {
         return entry.userId === currentUser.id && isSameMonth(entryDate, today);
     });
     const totalHours = userTimeEntries.reduce((acc, entry) => acc + entry.duration, 0);
-
-    // Calculate Overtime so far
-    let workDaysSoFar = 0;
-    let assignedHoursSoFar = 0;
-    for (let d = new Date(periodStart); d <= today; d = addDays(d, 1)) {
-        const dayOfWeek = getDay(d);
-        if (dayOfWeek === 0 || dayOfWeek === 6) continue;
-        const isHoliday = userHolidaysInYear.some(h => isSameDay(parseISO(h.date), d));
-        if (!isHoliday) {
-            workDaysSoFar++;
-             const activeContractsOnDay = currentUser.contracts.filter(c => {
-                const contractStart = parseISO(c.startDate);
-                const contractEnd = c.endDate ? parseISO(c.endDate) : yearEnd;
-                return isWithinInterval(d, { start: contractStart, end: contractEnd });
-            });
-            if (activeContractsOnDay.length > 0) {
-                const dailyHours = activeContractsOnDay.reduce((sum, c) => sum + c.weeklyHours, 0) / 5;
-                assignedHoursSoFar += dailyHours;
-            }
-        }
-    }
-    
-    const avgDailyHoursSoFar = workDaysSoFar > 0 ? assignedHoursSoFar / workDaysSoFar : 0;
-    const leaveDaysSoFar = workDaysSoFar * dailyLeaveCredit;
-    const leaveHoursSoFar = leaveDaysSoFar * avgDailyHoursSoFar;
-    const expectedHoursSoFar = parseFloat((assignedHoursSoFar - leaveHoursSoFar).toFixed(2));
     const overtime = totalHours - expectedHoursSoFar;
 
-    // Calculate Holiday Days Taken
+    // Calculate Holiday Days Taken for balance card
     const takenVacationDays = holidayRequests
       .filter(req => req.userId === currentUser.id && req.status === 'Approved' && req.type === 'Vacation' && getYear(parseISO(req.startDate)) === currentYear)
       .reduce((acc, req) => acc + calculateDurationInWorkdays(new Date(req.startDate), new Date(req.endDate), req.userId), 0);
@@ -212,7 +174,7 @@ export function MyDashboard() {
     if (!deletingEntry) return;
     await deleteTimeEntry(deletingEntry.id);
     setDeletingEntry(null);
-    setIsDetailsDialogOpen(false); // Also close day details dialog
+    setIsDetailsDialogOpen(false);
   };
 
   const handleRowDoubleClick = (entry: TimeEntry) => {
@@ -300,7 +262,7 @@ export function MyDashboard() {
                       <div>
                         <div className="text-2xl font-bold">{t('daysCount', { count: takenVacationDays })} of Vacation</div>
                         <p className="text-xs text-muted-foreground">
-                        {t('daysRemaining', { count: remainingDays.toFixed(2) })}
+                        {remainingDays.toFixed(2)} days remaining
                         </p>
                       </div>
                       <div className="pt-2 border-t">
