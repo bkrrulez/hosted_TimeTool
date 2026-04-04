@@ -194,7 +194,7 @@ export function IndividualReport() {
         });
 
         if (contractsInYear.length === 0) {
-             return { availableYears: yearsList, availableMonths: [], minContractDate: minDateVal, maxContractDate: maxContractDate };
+             return { availableYears: yearsList, availableMonths: [], minContractDate: minDateVal, maxContractDate: maxDateVal };
         }
 
         const startMonthsInYear = contractsInYear.map(c => 
@@ -209,7 +209,7 @@ export function IndividualReport() {
 
         const monthsList = months.filter(m => m.value >= startMonthForYear && m.value <= endMonthForYear);
     
-        return { availableYears: yearsList, availableMonths: monthsList, minContractDate: minDateVal, maxContractDate: maxContractDate };
+        return { availableYears: yearsList, availableMonths: monthsList, minContractDate: minDateVal, maxContractDate: maxDateVal };
     }, [selectedUser, selectedDate]);
 
 
@@ -301,7 +301,7 @@ export function IndividualReport() {
         const start = parseISO(req.startDate);
         const end = parseISO(req.endDate);
         const dates: { date: Date; type: "Vacation" | "Sick Leave" }[] = [];
-        for (let dt = start; dt <= end; dt = addDays(dt, 1)) {
+        for (let dt = start; dt <= end; dt = addDays(d, 1)) {
             if (isSameMonth(dt, selectedDate)) {
                 dates.push({ date: new Date(dt), type: req.type });
             }
