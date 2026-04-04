@@ -572,7 +572,7 @@ export default function ReportsPage() {
                   { v: userRow.leaveHours, t: 'n', s: {...userStyle, ...numberFormat} },
                   { v: userRow.expectedHours, t: 'n', s: {...userStyle, ...numberFormat} }, 
                   { v: userRow.loggedHours, t: 'n', s: {...userStyle, ...numberFormat} },
-                  { v: userRow.remainingHours, t: 'n', s: { ...userStyle, ...numberFormat, font: { ...userStyle.font, color: { rgb: userRow.remainingHours < 0 ? "008000" : "000000" } } } }
+                  { v: userRow.remainingHours, t: 'n', s: { ...userStyle.font, font: { ...userStyle.font, color: { rgb: userRow.remainingHours < 0 ? "008000" : "000000" } } } }
               ];
               dataForExport.push(userRowData);
               
@@ -925,7 +925,13 @@ export default function ReportsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {sortedConsolidatedData.map(member => (
+                        {sortedConsolidatedData.map(member => {
+                          const activeContractsOnDay = member.contracts.filter(c => {
+                              const contractStart = parseISO(c.startDate);
+                              const contractEnd = c.endDate ? parseISO(c.endDate) : endOfYear(periodEnd);
+                              return isWithinInterval(periodStart, { start: contractStart, end: contractEnd });
+                          });
+                          return (
                           <TableRow key={member.id}>
                             <TableCell>
                               <div className="flex items-center gap-3">
@@ -942,7 +948,7 @@ export default function ReportsPage() {
                             <TableCell className={cn("text-right font-mono", member.remainingHours < 0 && "text-green-600")}>{member.remainingHours.toFixed(2)}h</TableCell>
                             <TableCell className="text-right font-mono">{member.inOfficePercentage.toFixed(2)}%</TableCell>
                           </TableRow>
-                        ))}
+                        )})}
                         {reports.consolidatedData.length === 0 && (<TableRow><TableCell colSpan={8} className="text-center h-24">{t('noTeamMembers')}</TableCell></TableRow>)}
                       </TableBody>
                     </Table>

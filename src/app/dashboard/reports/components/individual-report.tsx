@@ -108,7 +108,7 @@ const DayContent: React.FC<DayContentProps> = (props) => {
         ) : <span className="h-[15px]" />}
         {!isWeekend && (
             holidayName ? (
-                <span className="text-[10px] font-semibold text-green-600 truncate px-1">
+                <span className={cn("text-[10px] font-semibold text-green-600 truncate px-1 mt-auto")}>
                     {holidayName}
                 </span>
             ) : personalLeave ? (
@@ -626,7 +626,7 @@ export function IndividualReport() {
                       cell: "flex-1 text-center text-sm p-0 m-0 border h-[50px]", 
                       head_row: "flex",
                       head_cell: "text-muted-foreground rounded-md w-full font-normal text-[0.8rem]",
-                      day: "h-full w-full text-base p-0",
+                      day: "h-full w-full p-0",
                       months: "w-full",
                       month: "w-full space-y-4",
                       caption_label: "text-lg font-bold"
