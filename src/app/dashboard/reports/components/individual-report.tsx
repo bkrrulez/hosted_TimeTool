@@ -103,16 +103,18 @@ const DayContent: React.FC<DayContentProps> = (props) => {
   return (
     <div {...wrapperProps}>
         <div className="self-start">{dayOfMonth}</div>
-        {hours !== undefined && hours > 0 ? (
-            <span className="text-xs font-bold text-primary">{hours.toFixed(1)}h</span>
-        ) : <span className="h-[15px]" />}
+        <div className="flex flex-col items-center justify-center flex-grow">
+            {hours !== undefined && hours > 0 ? (
+                <span className="text-xs font-bold text-primary">{hours.toFixed(1)}h</span>
+            ) : <span className="h-[15px]" />}
+        </div>
         {!isWeekend && (
             holidayName ? (
-                <span className={cn("text-[10px] font-semibold text-green-600 truncate px-1 mt-auto")}>
+                <span className={cn("text-[9px] font-semibold text-green-600 truncate px-1 mt-auto w-full leading-tight")}>
                     {holidayName}
                 </span>
             ) : personalLeave ? (
-                <span className={cn("text-[10px] font-semibold text-yellow-700 truncate px-1 mt-auto", personalLeave.type === 'Sick Leave' && "text-orange-600")}>
+                <span className={cn("text-[9px] font-semibold text-yellow-700 truncate px-1 mt-auto w-full leading-tight", personalLeave.type === 'Sick Leave' && "text-orange-600")}>
                     {personalLeave.type}
                 </span>
             ) : <span className="h-[15px]" />
@@ -480,7 +482,7 @@ export function IndividualReport() {
             newMonth = getMonth(maxContractDate);
         }
 
-        setSelectedDate(new Date(newYear, newMonth, 1));
+        setSelectedDate(newYear, newMonth, 1);
     }
     
     const handleDayClick = React.useCallback((date: Date) => {

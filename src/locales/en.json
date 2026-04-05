@@ -1,5 +1,4 @@
 
-
 {
     "dashboard": "Dashboard",
     "team": "Team",
@@ -50,11 +49,6 @@
     "holidaysTaken": "Holidays Taken",
     "daysCount": "{{count}} Day(s)",
     "daysRemaining": "{{count}} days remaining",
-    "recentTimeEntries": "Recent Time Entries",
-    "date": "Date",
-    "task": "Task",
-    "duration": "Duration",
-    "noRecentEntries": "No recent entries.",
     "upcomingPublicHolidays": "Upcoming Public Holidays",
     "upcomingPublicHolidaysDesc": "The next 3 upcoming public holidays.",
     "noUpcomingPublicHolidays": "No upcoming public holidays.",
@@ -288,7 +282,9 @@
     "notificationsSentDesc": "Notifications were triggered for {{count}} users.",
     "notificationsSentError": "Could not process notifications.",
     "intendedHours": "Intended Hours",
-    "actualHours": "Actual Hours"
+    "actualHours": "Actual Hours",
+    "cardHolidaysTaken": "Holidays Taken in {{year}}",
+    "cardVacation": "of Vacation",
+    "cardSickLeave": "of Sick Leave",
+    "cardRemaining": "days remaining"
 }
-
-

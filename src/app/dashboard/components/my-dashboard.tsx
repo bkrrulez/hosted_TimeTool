@@ -255,18 +255,18 @@ export function MyDashboard() {
           ) : isHolidaysNavVisible ? (
               <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Holidays Taken in {currentYear}</CardTitle>
+                      <CardTitle className="text-sm font-medium">{t('cardHolidaysTaken', { year: currentYear })}</CardTitle>
                       <Users className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent className="space-y-2">
                       <div>
-                        <div className="text-2xl font-bold">{t('daysCount', { count: takenVacationDays })} of Vacation</div>
+                        <div className="text-2xl font-bold">{t('daysCount', { count: takenVacationDays })} {t('cardVacation')}</div>
                         <p className="text-xs text-muted-foreground">
-                        {remainingDays.toFixed(2)} days remaining
+                        {remainingDays.toFixed(2)} {t('cardRemaining')}
                         </p>
                       </div>
                       <div className="pt-2 border-t">
-                        <div className="text-lg font-bold">{t('daysCount', { count: takenSickDays })} of Sick Leave</div>
+                        <div className="text-lg font-bold">{t('daysCount', { count: takenSickDays })} {t('cardSickLeave')}</div>
                       </div>
                   </CardContent>
               </Card>

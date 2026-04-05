@@ -1,5 +1,4 @@
 
-
 {
     "dashboard": "Dashboard",
     "team": "Team",
@@ -21,7 +20,7 @@
     "accessControlSubtitle": "Kalender sperren, um Änderungen an Zeiteinträgen zu verhindern.",
     "freezeCalendar": "Kalender sperren",
     "activeFreezeRules": "Aktive Sperrregeln",
-    "activeFreezeRulesDesc": "Eine Liste aller derzeit aktiven Kalendersperrregeln.",
+    "activeFreezeRulesDesc": " Eine Liste aller derzeit aktiven Kalendersperrregeln.",
     "startDate": "Startdatum",
     "endDate": "Enddatum",
     "action": "Aktion",
@@ -142,7 +141,7 @@
     "passwordChangedDesc": "Das Passwort für {{name}} wurde geändert und eine Benachrichtigungs-E-Mail wurde gesendet.",
     "error": "Fehler",
     "smtpError": "Passwortänderungsbenachrichtigung konnte nicht gesendet werden. Bitte überprüfen Sie die SMTP-Einstellungen.",
-    "userDeleted": "Benutzer gelöscht",
+    "userDeleted": "Benutzer löschen",
     "userDeletedDesc": "Benutzer {{name}} erfolgreich gelöscht.",
     "monthlyHours": "Monatsstunden",
     "monthlyHoursDesc": "Doppelklicken Sie auf einen Balken, um Einträge für diesen Tag anzuzeigen oder zu bearbeiten.",
@@ -288,7 +287,9 @@
     "notificationsSentDesc": "Benachrichtigungen wurden für {{count}} Benutzer ausgelöst.",
     "notificationsSentError": "Benachrichtigungen konnten nicht verarbeitet werden.",
     "intendedHours": "Soll-Stunden",
-    "actualHours": "Ist-Stunden"
+    "actualHours": "Ist-Stunden",
+    "cardHolidaysTaken": "Genommene Urlaubstage in {{year}}",
+    "cardVacation": "an Urlaub",
+    "cardSickLeave": "an Krankheitstagen",
+    "cardRemaining": "Tage verbleibend"
 }
-
-
