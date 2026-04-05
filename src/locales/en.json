@@ -286,5 +286,9 @@
     "cardHolidaysTaken": "Holidays Taken in {{year}}",
     "cardVacation": "of Vacation",
     "cardSickLeave": "of Sick Leave",
-    "cardRemaining": "days remaining"
+    "cardRemaining": "days remaining",
+    "dashHolidaysTaken": "Holidays Taken in {{year}}",
+    "dashVacation": "of Vacation",
+    "dashSickLeave": "of Sick Leave",
+    "dashRemaining": "days remaining"
 }

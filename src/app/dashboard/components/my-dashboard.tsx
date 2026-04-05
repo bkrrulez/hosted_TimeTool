@@ -86,7 +86,6 @@ export function MyDashboard() {
     const today = new Date();
     const currentYear = today.getFullYear();
     const periodStart = startOfMonth(today);
-    const periodEnd = endOfMonth(today);
 
     const publicHolidaysInYear = publicHolidays.filter(h => getYear(parseISO(h.date)) === currentYear);
     const userHolidaysInYear = publicHolidaysInYear.concat(
@@ -255,18 +254,18 @@ export function MyDashboard() {
           ) : isHolidaysNavVisible ? (
               <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">{t('cardHolidaysTaken', { year: currentYear })}</CardTitle>
+                      <CardTitle className="text-sm font-medium">{t('dashHolidaysTaken', { year: currentYear })}</CardTitle>
                       <Users className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent className="space-y-2">
                       <div>
-                        <div className="text-2xl font-bold">{t('daysCount', { count: takenVacationDays })} {t('cardVacation')}</div>
+                        <div className="text-2xl font-bold">{t('daysCount', { count: takenVacationDays })} {t('dashVacation')}</div>
                         <p className="text-xs text-muted-foreground">
-                        {remainingDays.toFixed(2)} {t('cardRemaining')}
+                        {remainingDays.toFixed(2)} {t('dashRemaining')}
                         </p>
                       </div>
                       <div className="pt-2 border-t">
-                        <div className="text-lg font-bold">{t('daysCount', { count: takenSickDays })} {t('cardSickLeave')}</div>
+                        <div className="text-lg font-bold">{t('daysCount', { count: takenSickDays })} {t('dashSickLeave')}</div>
                       </div>
                   </CardContent>
               </Card>

@@ -162,7 +162,7 @@ export function IndividualReport() {
 
     React.useEffect(() => {
         const userFromParams = viewableUsers.find(u => u.id === targetUserId);
-        const userToSelect = userFromParams || (viewableUsers.includes(currentUser) ? currentUser : viewableUsers[0]);
+        const userToSelect = userFromParams || (viewableUsers.find(u => u.id === currentUser.id) ? currentUser : viewableUsers[0]);
         setSelectedUser(userToSelect);
     }, [targetUserId, viewableUsers, currentUser]);
 
@@ -482,7 +482,7 @@ export function IndividualReport() {
             newMonth = getMonth(maxContractDate);
         }
 
-        setSelectedDate(newYear, newMonth, 1);
+        setSelectedDate(new Date(newYear, newMonth, 1));
     }
     
     const handleDayClick = React.useCallback((date: Date) => {

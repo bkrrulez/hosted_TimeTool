@@ -209,8 +209,8 @@
     "systemLogsSubtitle": "Eine schreibgeschützte Aufzeichnung aller Systemaktivitäten anzeigen.",
     "logViewer": "Protokollanzeige",
     "logViewerDesc": "Protokolle nach Monat oder einem benutzerdefinierten Datumsbereich filtern. Protokolle sind unveränderlich.",
-    "byMonth": "Nach Monat",
-    "byRange": "Nach Bereich",
+    "byMonth": "Bezüglich Monat",
+    "byRange": "Bezüglich Bereich",
     "pickDateRange": "Wählen Sie einen Datumsbereich",
     "timestamp": "Zeitstempel",
     "logEntry": "Protokolleintrag",
@@ -291,5 +291,9 @@
     "cardHolidaysTaken": "Genommene Urlaubstage in {{year}}",
     "cardVacation": "an Urlaub",
     "cardSickLeave": "an Krankheitstagen",
-    "cardRemaining": "Tage verbleibend"
+    "cardRemaining": "Tage verbleibend",
+    "dashHolidaysTaken": "Genommene Urlaubstage in {{year}}",
+    "dashVacation": "an Urlaub",
+    "dashSickLeave": "an Krankheitstagen",
+    "dashRemaining": "Tage verbleibend"
 }
