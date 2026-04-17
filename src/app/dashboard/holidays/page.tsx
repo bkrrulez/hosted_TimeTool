@@ -333,22 +333,24 @@ export default function HolidaysPage() {
   
   const handleSaveRequest = (data: LeaveRequestFormValues) => {
     if (data.from && data.to) {
+        const targetUserId = data.userId || currentUser.id;
         // Standardize to local dates at midnight for workday calculation
         const start = new Date(data.from.getFullYear(), data.from.getMonth(), data.from.getDate());
         const end = new Date(data.to.getFullYear(), data.to.getMonth(), data.to.getDate());
         
-        const requestedDuration = calculateDurationInWorkdays(start, end, currentUser.id);
+        const requestedDuration = calculateDurationInWorkdays(start, end, targetUserId);
         
         if (requestedDuration <= 0) {
             toast({
                 variant: 'destructive',
                 title: 'Invalid Leave Dates',
-                description: 'Your request does not contain any working days. Please select a different date range.',
+                description: 'The request does not contain any working days. Please select a different date range.',
             });
             return;
         }
 
         addHolidayRequest({
+            userId: data.userId,
             startDate: format(data.from, 'yyyy-MM-dd'),
             endDate: format(data.to, 'yyyy-MM-dd'),
             type: data.type,
@@ -374,7 +376,7 @@ export default function HolidaysPage() {
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
           <div>
             <h1 className="text-3xl font-bold font-headline">Holidays</h1>
-            <p className="text-muted-foreground">Manage your leave requests and allowance.</p>
+            <p className="text-muted-foreground">Manage leave requests and allowance.</p>
           </div>
           <Button onClick={() => setIsRequestDialogOpen(true)}>
             <PlusCircle className="mr-2 h-4 w-4" /> Request Leaves
@@ -391,7 +393,7 @@ export default function HolidaysPage() {
                     <Card>
                         <CardHeader>
                             <CardTitle>Total Allowance in {currentYear}</CardTitle>
-                            <CardDescription>Based on your contract days this year</CardDescription>
+                            <CardDescription>Based on contract days this year</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <p className="text-3xl font-bold">{getDurationText(userAllowance)}</p>
@@ -486,6 +488,8 @@ export default function HolidaysPage() {
         isOpen={isRequestDialogOpen}
         onOpenChange={setIsRequestDialogOpen}
         onSave={handleSaveRequest}
+        currentUser={currentUser}
+        teamMembers={teamMembers}
       />
       <AlertDialog open={!!withdrawingRequest} onOpenChange={(isOpen) => !isOpen && setWithdrawingRequest(null)}>
         <AlertDialogContent>

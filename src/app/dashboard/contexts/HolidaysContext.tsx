@@ -1,4 +1,3 @@
-
 'use client';
 import * as React from 'react';
 import { type PublicHoliday, type CustomHoliday, type HolidayRequest } from "@/lib/types";
@@ -36,7 +35,7 @@ interface HolidaysContextType {
   annualLeaveAllowance: number;
   setAnnualLeaveAllowance: (allowance: number) => Promise<void>;
   holidayRequests: HolidayRequest[];
-  addHolidayRequest: (request: Omit<HolidayRequest, 'id' | 'userId' | 'status'>) => Promise<void>;
+  addHolidayRequest: (request: Omit<HolidayRequest, 'id' | 'userId' | 'status'> & { userId?: string }) => Promise<void>;
   approveRequest: (requestId: string) => Promise<void>;
   rejectRequest: (requestId: string) => Promise<void>;
   withdrawRequest: (requestId: string) => Promise<void>;
@@ -86,41 +85,50 @@ export function HolidaysProvider({ children }: { children: React.ReactNode }) {
       await logAction(`User '${currentUser.name}' updated annual leave allowance to ${allowance} days.`);
     };
 
-    const addHolidayRequest = async (request: Omit<HolidayRequest, 'id' | 'userId' | 'status'>) => {
+    const addHolidayRequest = async (request: Omit<HolidayRequest, 'id' | 'userId' | 'status'> & { userId?: string }) => {
+        const targetUserId = request.userId || currentUser.id;
         const newRequestData = {
-            userId: currentUser.id,
+            userId: targetUserId,
             status: 'Pending' as const,
-            ...request,
+            startDate: request.startDate,
+            endDate: request.endDate,
+            type: request.type,
         };
         const newRequest = await addHolidayRequestAction(newRequestData);
         
         if (newRequest) {
             setHolidayRequests(prev => [...prev, newRequest]);
-            await logAction(`User '${currentUser.name}' submitted a ${request.type.toLowerCase()} request from ${request.startDate} to ${request.endDate}.`);
+            
+            const targetUser = teamMembers.find(u => u.id === targetUserId) || currentUser;
+            const logMessage = currentUser.id === targetUserId
+                ? `User '${currentUser.name}' submitted a ${request.type.toLowerCase()} request from ${request.startDate} to ${request.endDate}.`
+                : `Admin '${currentUser.name}' submitted a ${request.type.toLowerCase()} request on behalf of '${targetUser.name}' from ${request.startDate} to ${request.endDate}.`;
+            
+            await logAction(logMessage);
 
             const recipients = new Set<string>();
             
-            // 1. Send notification to direct manager
-            if (currentUser.reportsTo) {
-                recipients.add(currentUser.reportsTo);
+            // 1. Send notification to target user's direct manager
+            if (targetUser.reportsTo) {
+                recipients.add(targetUser.reportsTo);
             }
             
             // 2. Send notification to all other Super Admins
-            // We iterate over teamMembers to find admins
             teamMembers.forEach(member => {
                 if (member.role === 'Super Admin' && member.id !== currentUser.id) {
                     recipients.add(member.id);
                 }
             });
 
-            // 3. Robust fallback: if list is empty or hasn't loaded, ensure at least one admin is notified if possible
-            // (In a real system, we'd have a server-side subscriber list)
+            // Cleanup recipients list
+            recipients.delete(currentUser.id);
+            recipients.delete(targetUserId);
 
             if (recipients.size > 0) {
                 await addNotification({
                     recipientIds: Array.from(recipients),
                     title: `New ${request.type} Request`,
-                    body: `${currentUser.name} requested ${request.type.toLowerCase()} from ${format(parseISO(request.startDate), 'PP')} to ${format(parseISO(request.endDate), 'PP')}.`,
+                    body: `${targetUser.name} requested ${request.type.toLowerCase()} from ${format(parseISO(request.startDate), 'PP')} to ${format(parseISO(request.endDate), 'PP')}.`,
                     referenceId: newRequest.id,
                     type: 'holidayRequest'
                 });
