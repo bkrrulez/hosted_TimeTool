@@ -1,4 +1,4 @@
-# TimeTool by Bikramjit Chowdhury
+# TimeTool by Bikramjit Chowdhury (TU WIen)
 
 This is a Next.js application built for time tracking and managing small teams.
 
