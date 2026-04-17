@@ -324,7 +324,7 @@ export default function HolidaysPage() {
         .reduce((acc, req) => acc + calculateDurationInWorkdays(parseISO(req.startDate), parseISO(req.endDate), req.userId), 0);
   }, [userHolidayRequests, calculateDurationInWorkdays]);
 
-  const remainingDays = userAllowance - takenVacationDays;
+  const remainingDays = Math.max(0, userAllowance - takenVacationDays);
 
   const getDurationText = (days: number) => {
       const formattedDays = parseFloat(days.toFixed(2));
@@ -344,15 +344,6 @@ export default function HolidaysPage() {
                 variant: 'destructive',
                 title: 'Invalid Leave Dates',
                 description: 'Your request does not contain any working days. Please select a different date range.',
-            });
-            return;
-        }
-
-        if (data.type === 'Vacation' && requestedDuration > remainingDays) {
-            toast({
-                variant: 'destructive',
-                title: 'Insufficient Leave Allowance',
-                description: `You are requesting ${requestedDuration} days but only have ${remainingDays.toFixed(2)} days remaining.`,
             });
             return;
         }

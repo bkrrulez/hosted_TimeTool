@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -149,7 +148,7 @@ export function MyDashboard() {
       .filter(req => req.userId === currentUser.id && req.status === 'Approved' && req.type === 'Sick Leave' && getYear(parseISO(req.startDate)) === currentYear)
       .reduce((acc, req) => acc + calculateDurationInWorkdays(new Date(req.startDate), new Date(req.endDate), req.userId), 0);
 
-    const remainingDays = userAllowance - takenVacationDays;
+    const remainingDays = Math.max(0, userAllowance - takenVacationDays);
 
     return { totalHours, expectedHoursSoFar, overtime, takenVacationDays, takenSickDays, remainingDays };
   }, [timeEntries, publicHolidays, customHolidays, holidayRequests, userAllowance, currentUser, annualLeaveAllowance, calculateDurationInWorkdays]);
